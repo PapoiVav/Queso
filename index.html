@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Juego polis</title>
+    <title>Papoi v1.02.3</title>
     <style>
         body {
             background-color: #0c0811;
@@ -55,6 +55,8 @@
             display: flex;
             gap: 15px;
             margin-bottom: 15px;
+            flex-wrap: wrap;
+            justify-content: center;
         }
 
         .btn-diff {
@@ -72,6 +74,21 @@
         .btn-diff:hover {
             border-color: #00ffff;
             box-shadow: 0 0 10px #00ffff;
+        }
+
+        /* Botón prendido fuego azul */
+        .btn-sigma {
+            background: #001122;
+            color: #00ffff;
+            border: 2px solid #00d8ff;
+            box-shadow: 0 0 15px #00ffff, inset 0 0 15px #0088ff;
+            animation: blueFlame 1.2s infinite alternate ease-in-out;
+        }
+
+        @keyframes blueFlame {
+            0% { box-shadow: 0 0 10px #0088ff, 0 -5px 15px #00ffff; }
+            50% { box-shadow: 0 0 20px #00ffff, 0 -12px 25px #0088ff; }
+            100% { box-shadow: 0 0 12px #0055ff, 0 -8px 18px #00d8ff; }
         }
 
         .desc-box {
@@ -92,7 +109,7 @@
         }
 
         .hp-background {
-            width: 70%;
+            width: 60%;
             height: 18px;
             background: #222;
             border-radius: 9px;
@@ -107,6 +124,13 @@
             transition: width 0.1s linear;
         }
 
+        #phase-text {
+            font-size: 0.85rem;
+            font-weight: bold;
+            min-width: 140px;
+            text-align: right;
+        }
+
         .restart-btn {
             background: #ff0055;
             color: #fff;
@@ -117,31 +141,62 @@
             cursor: pointer;
             margin-top: 15px;
         }
+
+        /* Notificación flotante al centro bien visible */
+        #toast-notification {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.8);
+            background: rgba(5, 3, 8, 0.95);
+            border: 2px solid #00ffff;
+            color: #00ffff;
+            padding: 20px 30px;
+            border-radius: 12px;
+            font-size: 1.6rem;
+            font-weight: bold;
+            box-shadow: 0 0 30px #00ffff;
+            opacity: 0;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            pointer-events: none;
+            z-index: 20;
+            text-align: center;
+        }
+
+        #toast-notification.show {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+        }
     </style>
 </head>
 <body>
 
     <div id="ui-bar">
         <div id="lives-ui">❤️❤️❤️❤️❤️❤️</div>
-        <div class="hp-background">
+        <div class="hp-background" id="hp-container">
             <div id="hp-bar"></div>
         </div>
         <div id="hp-text">100%</div>
+        <div id="phase-text"></div>
     </div>
 
     <div id="game-container">
-        <!-- Pantalla de Dificultad -->
+        <!-- Notificación flotante para los textos secret -->
+        <div id="toast-notification"></div>
+
+        <!-- Pantalla de Selección de Dificultad -->
         <div id="diff-screen" class="overlay">
             <h1>SELECCIONÁ DIFICULTAD</h1>
             <div class="diff-selector">
                 <button class="btn-diff" onmouseenter="showDesc('algo muy fácil, podrías completarlo sin jugar')" onclick="selectDifficulty('easy')">FÁCIL</button>
                 <button class="btn-diff" onmouseenter="showDesc('dificultad estándar')" onclick="selectDifficulty('normal')">NORMAL</button>
                 <button class="btn-diff" onmouseenter="showDesc('no sé porqué querrías jugar esto')" onclick="selectDifficulty('hard')">DIFÍCIL</button>
+                <button id="btn-sigma-secret" class="btn-diff btn-sigma" style="display: none;" onmouseenter="showDesc('solo los más sigmas son dignos de entrar')" onclick="selectDifficulty('sigma')">SIGMA</button>
             </div>
             <div id="diff-desc" class="desc-box">Pasá el mouse sobre una dificultad...</div>
         </div>
 
-        <!-- Pantalla Game Over / Victoria Troll -->
+        <!-- Pantalla de Game Over / Victoria -->
         <div id="game-overlay" class="overlay" style="display: none;">
             <h1 id="over-title">GAME OVER</h1>
             <p id="over-sub" style="text-align: center; max-width: 80%; line-height: 1.5;"></p>

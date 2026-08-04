@@ -1,13 +1,58 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
-// --- TECLADO ---
+// --- TECLADO Y DETECTOR DE PALABRAS ---
 const keys = {};
-window.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
+let keyBuffer = '';
+
+window.addEventListener('keydown', e => {
+    keys[e.key.toLowerCase()] = true;
+
+    // Guardar teclas para detectar las palabras clave
+    if (e.key.length === 1) {
+        keyBuffer += e.key.toLowerCase();
+        if (keyBuffer.length > 20) keyBuffer = keyBuffer.substring(1);
+
+        checkEasterEggWords();
+    }
+});
+
 window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+
+// --- ESTADOS DE LA SECUENCIA EASTER EGG ---
+let secretStep = 0; 
+let pendingSigmaUnlock = false;
+let isSigmaUnlocked = false;
 
 let gameState = 'MENU';
 let currentDifficulty = 'normal';
+
+// Temporizador de supervivencia
+let survivalTimer = 0;
+let survivalInterval = null;
+
+function showToast(text) {
+    const toast = document.getElementById('toast-notification');
+    toast.innerText = text;
+    toast.classList.add('show');
+    setTimeout(() => {
+        toast.classList.remove('show');
+    }, 2200);
+}
+
+function checkEasterEggWords() {
+    // Paso 1: escribir "papoi" tras ganar fácil
+    if (secretStep === 1 && keyBuffer.endsWith('papoi')) {
+        showToast('papoi?');
+        secretStep = 2; // Habilita el siguiente paso
+    }
+    // Paso 3: escribir "sigma" tras aguantar los 15s
+    else if (secretStep === 3 && keyBuffer.endsWith('sigma')) {
+        showToast('los sigmas están esperando');
+        pendingSigmaUnlock = true;
+        secretStep = 0;
+    }
+}
 
 function showDesc(text) {
     document.getElementById('diff-desc').innerText = text;
@@ -17,18 +62,69 @@ function selectDifficulty(diff) {
     currentDifficulty = diff;
     document.getElementById('diff-screen').style.display = 'none';
 
+    // Si estás en el paso 2 y te metés a otra cosa que no sea difícil, se reinicia la secuencia
+    if (secretStep === 2 && diff !== 'hard') {
+        secretStep = 0;
+    }
+
     if (diff === 'easy') {
-        endGame(true, true); // Victoria Troll Instantánea
+        secretStep = 1; // Inicia paso 1
+        endGame(true, true);
+        return;
+    }
+
+    if (diff === 'hard' && secretStep === 2) {
+        // Entró a difícil en la secuencia secreta -> Desafío 15s con 1 vida
+        startSurvivalChallenge();
         return;
     }
 
     restartGame();
 }
 
+function startSurvivalChallenge() {
+    restartGame();
+    player.lives = 1;
+    player.maxLives = 1;
+    updateUI();
+
+    survivalTimer = 15;
+    document.getElementById('hp-container').style.display = 'none';
+    document.getElementById('hp-text').innerText = `⏱️ ${survivalTimer}s`;
+
+    if (survivalInterval) clearInterval(survivalInterval);
+
+    survivalInterval = setInterval(() => {
+        if (gameState !== 'PLAYING') {
+            clearInterval(survivalInterval);
+            survivalInterval = null;
+            return;
+        }
+
+        survivalTimer--;
+        document.getElementById('hp-text').innerText = `⏱️ ${survivalTimer}s`;
+
+        if (survivalTimer <= 0) {
+            clearInterval(survivalInterval);
+            survivalInterval = null;
+            secretStep = 3; // Sobrevivió los 15s
+            endGame(true, false, true); // Pantalla "oh si"
+        }
+    }, 1000);
+}
+
 function openDifficultyMenu() {
     gameState = 'MENU';
     document.getElementById('game-overlay').style.display = 'none';
     document.getElementById('diff-screen').style.display = 'flex';
+    document.getElementById('hp-container').style.display = 'block';
+
+    // Si tenías el desbloqueo pendiente y moriste en cualquier dificultad (excepto fácil)
+    if (pendingSigmaUnlock) {
+        isSigmaUnlocked = true;
+        pendingSigmaUnlock = false;
+        document.getElementById('btn-sigma-secret').style.display = 'block';
+    }
 }
 
 // --- ENTIDADES ---
@@ -131,7 +227,6 @@ class PlayerBullet {
         this.radius = isHoming ? 4.0 : 3.5;
         this.color = isHoming ? '#00ffff' : '#ffffff';
         this.isHoming = isHoming;
-        // Daño reducido a 5 en Difícil
         this.damage = currentDifficulty === 'hard' ? 5.0 : (isHoming ? 4.5 : 8.5);
         this.speed = Math.hypot(vx, vy) || 9;
         this.markedForDeletion = false;
@@ -180,7 +275,6 @@ class Boss {
         this.x = x;
         this.y = y;
         this.radius = 32;
-        // Normal 1800 HP (más fácil), Difícil +10% de 2200 (2420 HP)
         this.maxHp = currentDifficulty === 'hard' ? 2420 : 1800;
         this.hp = this.maxHp;
 
@@ -189,7 +283,7 @@ class Boss {
         this.moveWhileAttacking = false;
 
         this.attackTimer = 180;
-        this.sniperTimer = currentDifficulty === 'hard' ? 140 : 250; 
+        this.sniperTimer = currentDifficulty === 'hard' ? 140 : 220; 
         this.currentPatterns = [];
         this.patternStep = 0;
         this.angleOffset = 0;
@@ -197,13 +291,10 @@ class Boss {
 
     getPhase() {
         const hpRatio = this.hp / this.maxHp;
-        
         if (currentDifficulty === 'hard') {
-            // En difícil al 50% salta DIRECTO a la Fase 3 (sin Fase 2 teledirigida)
             if (hpRatio <= 0.50) return 3;
             return 1;
         } else {
-            // Normal (ligeramente más suave)
             if (hpRatio <= 0.35) return 3;
             if (hpRatio <= 0.50) return 2;
             return 1;
@@ -219,7 +310,7 @@ class Boss {
             this.sniperTimer--;
             if (this.sniperTimer <= 0) {
                 this.triggerSnipe();
-                this.sniperTimer = currentDifficulty === 'hard' ? 140 : 250;
+                this.sniperTimer = currentDifficulty === 'hard' ? 140 : 220;
             }
         }
 
@@ -235,7 +326,7 @@ class Boss {
 
         if (this.attackTimer <= 0) {
             this.selectNextPatterns();
-            const cooldownMultiplier = currentDifficulty === 'hard' ? 0.7 : 1.15;
+            const cooldownMultiplier = currentDifficulty === 'hard' ? 0.7 : 1.0;
             this.attackTimer = (phase === 3 ? 130 : (phase === 2 ? 220 : 280)) * cooldownMultiplier; 
         }
 
@@ -264,10 +355,10 @@ class Boss {
     }
 
     triggerSnipe() {
-        const snipeSpeed = currentDifficulty === 'hard' ? 7.2 : 5.5;
+        const snipeSpeed = currentDifficulty === 'hard' ? 7.2 : 4.8;
         for (let i = 0; i < 5; i++) {
             setTimeout(() => {
-                if (boss.hp > 0 && gameState === 'PLAYING') {
+                if (boss && boss.hp > 0 && gameState === 'PLAYING') {
                     const currentAngle = Math.atan2(player.y - boss.y, player.x - boss.x);
                     bossBullets.push(new Bullet(boss.x, boss.y, Math.cos(currentAngle) * snipeSpeed, Math.sin(currentAngle) * snipeSpeed, 7, '#ffffff'));
                 }
@@ -278,16 +369,14 @@ class Boss {
     executePattern(type) {
         this.patternStep++;
         
-        // Balas un 20% más grandes en difícil
         const sizeMult = currentDifficulty === 'hard' ? 1.2 : 1.0;
         const mainBulletRadius = 6.5 * sizeMult; 
         const microBulletRadius = 4.5 * sizeMult; 
         const phase = this.getPhase();
 
-        // 1. Delirium
         if (type === 'deliriumChaos') {
             if (this.patternStep % 25 === 0 && this.patternStep <= 380) {
-                const count = 24;
+                const count = currentDifficulty === 'hard' ? 24 : 16;
                 this.angleOffset += 0.25;
 
                 for (let i = 0; i < count; i++) {
@@ -304,7 +393,7 @@ class Boss {
                         '#ffffff'
                     ));
 
-                    if (Math.random() < 0.75) {
+                    if (Math.random() < 0.5) {
                         bossBullets.push(new Bullet(
                             this.x, this.y,
                             Math.cos(angle + 0.15) * (baseSpeed * 0.5 / speedVar),
@@ -318,11 +407,10 @@ class Boss {
             if (this.patternStep > 390) this.isAttacking = false;
         }
 
-        // 2. Flor de Espirales
         if (type === 'flowerSpiral') {
             if (this.patternStep % 4 === 0 && this.patternStep < 240) {
                 this.angleOffset += 0.12;
-                const arms = 5;
+                const arms = currentDifficulty === 'hard' ? 5 : 4;
                 const slowSpeed = 2.5;
                 for (let i = 0; i < arms; i++) {
                     const angle = (Math.PI * 2 / arms) * i + this.angleOffset;
@@ -337,7 +425,6 @@ class Boss {
             if (this.patternStep >= 240) this.isAttacking = false;
         }
 
-        // 3. 3 Espirales Opuestas
         if (type === 'triOppositeSpiral') {
             if (this.patternStep % 4 === 0 && this.patternStep < 250) {
                 this.angleOffset += 0.14;
@@ -359,24 +446,14 @@ class Boss {
                         Math.sin(baseAngle - this.angleOffset) * bulletSpeed,
                         mainBulletRadius, '#ffbb00'
                     ));
-
-                    if ((this.patternStep / 4) % 2 === 0) {
-                        bossBullets.push(new Bullet(
-                            this.x, this.y,
-                            Math.cos(baseAngle - this.angleOffset * 1.3) * (bulletSpeed * 0.8),
-                            Math.sin(baseAngle - this.angleOffset * 1.3) * (bulletSpeed * 0.8),
-                            microBulletRadius, '#00ffff'
-                        ));
-                    }
                 }
             }
             if (this.patternStep >= 250) this.isAttacking = false;
         }
 
-        // 4. Anillos que frenan
         if (type === 'pausingRotatingRing') {
             if (this.patternStep % 35 === 0 && this.patternStep <= 210) {
-                const count = 20;
+                const count = currentDifficulty === 'hard' ? 20 : 14;
                 const offsetAngle = (this.patternStep / 35) * 0.15;
 
                 for (let i = 0; i < count; i++) {
@@ -395,14 +472,14 @@ class Boss {
             if (this.patternStep > 220) this.isAttacking = false;
         }
 
-        // 5. Ondas apuntadas
         if (type === 'lineWavePattern') {
             if (this.patternStep % 60 === 0 && this.patternStep <= 180) {
                 const targetAngle = Math.atan2(player.y - this.y, player.x - this.x);
                 
                 for (let dir = -1; dir <= 1; dir++) {
                     const angle = targetAngle + (0.22 * dir);
-                    for (let b = 1; b <= 5; b++) {
+                    const bMax = currentDifficulty === 'hard' ? 5 : 3;
+                    for (let b = 1; b <= bMax; b++) {
                         const speed = 2.5 + b * 0.6;
                         bossBullets.push(new Bullet(this.x, this.y, Math.cos(angle) * speed, Math.sin(angle) * speed, 8.5 * sizeMult, '#ff5500'));
                     }
@@ -411,7 +488,6 @@ class Boss {
             if (this.patternStep > 190) this.isAttacking = false;
         }
 
-        // 6. Explotan en pared
         if (type === 'diagonalWallBurst') {
             if (this.patternStep === 1 || this.patternStep === 80) {
                 bossBullets.push(new WallBurstBullet(this.x, this.y, -3.8, 4.2, 12.0 * sizeMult, '#ff00ff', 1));
@@ -420,10 +496,9 @@ class Boss {
             if (this.patternStep > 120) this.isAttacking = false;
         }
 
-        // 7. Péndulo
         if (type === 'pendulumRing') {
             if (this.patternStep % 30 === 0 && this.patternStep <= 210) {
-                const count = 28;
+                const count = currentDifficulty === 'hard' ? 28 : 20;
                 for (let i = 0; i < count; i++) {
                     const angle = (Math.PI * 2 / count) * i;
                     bossBullets.push(new PendulumBullet(
@@ -434,10 +509,9 @@ class Boss {
             if (this.patternStep > 220) this.isAttacking = false;
         }
 
-        // 8. Cruce en X
         if (type === 'doubleCrossRing') {
             if (this.patternStep % 30 === 0 && this.patternStep <= 210) {
-                const count = 16;
+                const count = currentDifficulty === 'hard' ? 16 : 12;
                 for (let i = 0; i < count; i++) {
                     const angle = (Math.PI * 2 / count) * i;
                     bossBullets.push(new RotatingBullet(this.x, this.y, angle, 2.4, 6.0 * sizeMult, '#00e5ff', 0.018));
@@ -466,8 +540,7 @@ class Bullet {
     constructor(x, y, vx, vy, radius, color) {
         this.x = x;
         this.y = y;
-        // Velocidad un 15% más rápida en difícil
-        const speedMult = currentDifficulty === 'hard' ? 1.15 : 0.95;
+        const speedMult = currentDifficulty === 'hard' ? 1.15 : 0.8;
         this.vx = vx * speedMult;
         this.vy = vy * speedMult;
         this.radius = radius;
@@ -537,7 +610,7 @@ class PendulumBullet extends Bullet {
         this.startX = startX;
         this.startY = startY;
         this.angle = angle;
-        this.speed = speed * (currentDifficulty === 'hard' ? 1.15 : 0.95);
+        this.speed = speed * (currentDifficulty === 'hard' ? 1.15 : 0.8);
         this.dist = 0;
         this.waveTime = 0;
     }
@@ -574,7 +647,7 @@ class RotatingBullet extends Bullet {
         this.startX = startX;
         this.startY = startY;
         this.angle = angle;
-        this.speed = speed * (currentDifficulty === 'hard' ? 1.15 : 0.95);
+        this.speed = speed * (currentDifficulty === 'hard' ? 1.15 : 0.8);
         this.rotSpeed = rotSpeed;
         this.dist = 0;
     }
@@ -607,7 +680,7 @@ class ReturnCurvedBullet extends Bullet {
     constructor(x, y, angle, speed, radius, color, curveRate) {
         super(x, y, Math.cos(angle) * speed, Math.sin(angle) * speed, radius, color);
         this.angle = angle;
-        this.speed = speed * (currentDifficulty === 'hard' ? 1.15 : 0.95);
+        this.speed = speed * (currentDifficulty === 'hard' ? 1.15 : 0.8);
         this.curveRate = curveRate;
         this.hasReentered = false;
         this.hasBounced = false;
@@ -654,7 +727,7 @@ class WallBurstBullet extends Bullet {
             this.hasExploded = true;
             this.markedForDeletion = true;
 
-            const burstBullets = 8;
+            const burstBullets = currentDifficulty === 'hard' ? 8 : 6;
             const centerAngle = this.x <= canvas.width / 2 ? 0 : Math.PI; 
 
             for (let i = 0; i < burstBullets; i++) {
@@ -700,25 +773,59 @@ function checkCollision(c1, c2) {
 
 function updateUI() {
     if (!boss || !player) return;
-    const hpPercent = Math.max(0, (boss.hp / boss.maxHp) * 100);
-    const hpBar = document.getElementById('hp-bar');
-    hpBar.style.width = `${hpPercent}%`;
-    document.getElementById('hp-text').innerText = `${Math.ceil(hpPercent)}%`;
+
+    if (survivalTimer <= 0) {
+        const hpPercent = Math.max(0, (boss.hp / boss.maxHp) * 100);
+        const hpBar = document.getElementById('hp-bar');
+        hpBar.style.width = `${hpPercent}%`;
+        document.getElementById('hp-text').innerText = `${Math.ceil(hpPercent)}%`;
+
+        const phaseText = document.getElementById('phase-text');
+        const phase = boss.getPhase();
+
+        if (phase === 3) {
+            phaseText.innerText = "🔥 FASE 3: ¡FRENESÍ!";
+            phaseText.style.color = "#ff0000";
+            hpBar.style.backgroundColor = "#ff0000";
+        } else if (phase === 2) {
+            phaseText.innerText = "⚡ FASE 2: TELEDIRIGIDAS";
+            phaseText.style.color = "#ffaa00";
+            hpBar.style.backgroundColor = "#ffaa00";
+        } else {
+            phaseText.innerText = "";
+            hpBar.style.backgroundColor = "#00ffff";
+        }
+    }
 
     let hearts = '';
     for (let i = 0; i < player.lives; i++) hearts += '❤️';
     document.getElementById('lives-ui').innerText = hearts || '💀';
 }
 
-function endGame(win, isTroll = false) {
+function endGame(win, isTroll = false, isSpecialWin = false) {
     gameState = win ? 'WIN' : 'LOSE';
     const screen = document.getElementById('game-overlay');
     const title = document.getElementById('over-title');
     const sub = document.getElementById('over-sub');
 
+    // Cortar el temporizador si el jugador murió durante los 15s
+    if (survivalInterval) {
+        clearInterval(survivalInterval);
+        survivalInterval = null;
+    }
+    survivalTimer = 0;
+
     screen.style.display = 'flex';
 
-    if (isTroll) {
+    // Perdió durante la secuencia secreta -> Reinicia el progreso
+    if (!win && secretStep > 0) {
+        secretStep = 0;
+    }
+
+    if (isSpecialWin) {
+        title.innerHTML = '<span style="font-size: 1.2rem; font-style: italic; color: #aaaaaa;">oh si</span>';
+        sub.innerText = "";
+    } else if (isTroll) {
         title.innerText = "¡GANASTE!";
         title.style.color = "#00ffff";
         sub.innerText = "WOW! eso de verdad fue fácil, ¿qué te parece si subimos el nivel?";
@@ -767,7 +874,7 @@ function gameLoop() {
             b.markedForDeletion = true;
             updateUI();
 
-            if (boss.hp <= 0) {
+            if (boss.hp <= 0 && survivalTimer <= 0) {
                 endGame(true);
             }
         }
