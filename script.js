@@ -6,7 +6,30 @@ const keys = {};
 window.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
 window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 
-let gameState = 'PLAYING';
+let gameState = 'MENU';
+let currentDifficulty = 'normal';
+
+function showDesc(text) {
+    document.getElementById('diff-desc').innerText = text;
+}
+
+function selectDifficulty(diff) {
+    currentDifficulty = diff;
+    document.getElementById('diff-screen').style.display = 'none';
+
+    if (diff === 'easy') {
+        endGame(true, true); // Victoria Troll Instantánea
+        return;
+    }
+
+    restartGame();
+}
+
+function openDifficultyMenu() {
+    gameState = 'MENU';
+    document.getElementById('game-overlay').style.display = 'none';
+    document.getElementById('diff-screen').style.display = 'flex';
+}
 
 // --- ENTIDADES ---
 class Player {
@@ -16,7 +39,7 @@ class Player {
         this.radius = 3;
         this.speed = 4.5;
         this.shootCooldown = 0;
-        this.maxLives = 6;
+        this.maxLives = currentDifficulty === 'hard' ? 4 : 6;
         this.lives = this.maxLives;
         this.invulnerableTimer = 0;
     }
@@ -108,7 +131,8 @@ class PlayerBullet {
         this.radius = isHoming ? 4.0 : 3.5;
         this.color = isHoming ? '#00ffff' : '#ffffff';
         this.isHoming = isHoming;
-        this.damage = isHoming ? 4.5 : 8.5;
+        // Daño reducido a 5 en Difícil
+        this.damage = currentDifficulty === 'hard' ? 5.0 : (isHoming ? 4.5 : 8.5);
         this.speed = Math.hypot(vx, vy) || 9;
         this.markedForDeletion = false;
     }
@@ -156,7 +180,8 @@ class Boss {
         this.x = x;
         this.y = y;
         this.radius = 32;
-        this.maxHp = 2200;
+        // Normal 1800 HP (más fácil), Difícil +10% de 2200 (2420 HP)
+        this.maxHp = currentDifficulty === 'hard' ? 2420 : 1800;
         this.hp = this.maxHp;
 
         this.moveDir = 1;
@@ -164,7 +189,7 @@ class Boss {
         this.moveWhileAttacking = false;
 
         this.attackTimer = 180;
-        this.sniperTimer = 220; 
+        this.sniperTimer = currentDifficulty === 'hard' ? 140 : 250; 
         this.currentPatterns = [];
         this.patternStep = 0;
         this.angleOffset = 0;
@@ -172,9 +197,17 @@ class Boss {
 
     getPhase() {
         const hpRatio = this.hp / this.maxHp;
-        if (hpRatio <= 0.35) return 3;
-        if (hpRatio <= 0.50) return 2;
-        return 1;
+        
+        if (currentDifficulty === 'hard') {
+            // En difícil al 50% salta DIRECTO a la Fase 3 (sin Fase 2 teledirigida)
+            if (hpRatio <= 0.50) return 3;
+            return 1;
+        } else {
+            // Normal (ligeramente más suave)
+            if (hpRatio <= 0.35) return 3;
+            if (hpRatio <= 0.50) return 2;
+            return 1;
+        }
     }
 
     update() {
@@ -182,19 +215,19 @@ class Boss {
 
         const phase = this.getPhase();
 
-        // EL ATAQUE SNIPER SOLO SE ACTIVA EN LA FASE 1
         if (phase === 1) {
             this.sniperTimer--;
             if (this.sniperTimer <= 0) {
                 this.triggerSnipe();
-                this.sniperTimer = 220;
+                this.sniperTimer = currentDifficulty === 'hard' ? 140 : 250;
             }
         }
 
         const canMove = phase >= 2 || !this.isAttacking || this.moveWhileAttacking;
 
         if (canMove) {
-            const currentSpeed = phase === 3 ? 3.8 : (phase === 2 ? 3.2 : 2.5);
+            const speedMultiplier = currentDifficulty === 'hard' ? 1.3 : 0.9;
+            const currentSpeed = (phase === 3 ? 3.8 : (phase === 2 ? 3.2 : 2.5)) * speedMultiplier;
             this.x += currentSpeed * this.moveDir;
             if (this.x - this.radius < 60) this.moveDir = 1;
             if (this.x + this.radius > canvas.width - 60) this.moveDir = -1;
@@ -202,7 +235,8 @@ class Boss {
 
         if (this.attackTimer <= 0) {
             this.selectNextPatterns();
-            this.attackTimer = phase === 3 ? 130 : (phase === 2 ? 220 : 280); 
+            const cooldownMultiplier = currentDifficulty === 'hard' ? 0.7 : 1.15;
+            this.attackTimer = (phase === 3 ? 130 : (phase === 2 ? 220 : 280)) * cooldownMultiplier; 
         }
 
         if (this.currentPatterns.length > 0) {
@@ -230,11 +264,12 @@ class Boss {
     }
 
     triggerSnipe() {
+        const snipeSpeed = currentDifficulty === 'hard' ? 7.2 : 5.5;
         for (let i = 0; i < 5; i++) {
             setTimeout(() => {
                 if (boss.hp > 0 && gameState === 'PLAYING') {
                     const currentAngle = Math.atan2(player.y - boss.y, player.x - boss.x);
-                    bossBullets.push(new Bullet(boss.x, boss.y, Math.cos(currentAngle) * 6, Math.sin(currentAngle) * 6, 7, '#ffffff'));
+                    bossBullets.push(new Bullet(boss.x, boss.y, Math.cos(currentAngle) * snipeSpeed, Math.sin(currentAngle) * snipeSpeed, 7, '#ffffff'));
                 }
             }, i * 100);
         }
@@ -242,8 +277,11 @@ class Boss {
 
     executePattern(type) {
         this.patternStep++;
-        const mainBulletRadius = 6.5; 
-        const microBulletRadius = 4.5; 
+        
+        // Balas un 20% más grandes en difícil
+        const sizeMult = currentDifficulty === 'hard' ? 1.2 : 1.0;
+        const mainBulletRadius = 6.5 * sizeMult; 
+        const microBulletRadius = 4.5 * sizeMult; 
         const phase = this.getPhase();
 
         // 1. Delirium
@@ -335,7 +373,7 @@ class Boss {
             if (this.patternStep >= 250) this.isAttacking = false;
         }
 
-        // 4. RÁFAGA DE ANILLOS QUE FRENAN Y SIGUEN ADELANTE
+        // 4. Anillos que frenan
         if (type === 'pausingRotatingRing') {
             if (this.patternStep % 35 === 0 && this.patternStep <= 210) {
                 const count = 20;
@@ -357,7 +395,7 @@ class Boss {
             if (this.patternStep > 220) this.isAttacking = false;
         }
 
-        // 5. Ondas en Línea APUNTADAS
+        // 5. Ondas apuntadas
         if (type === 'lineWavePattern') {
             if (this.patternStep % 60 === 0 && this.patternStep <= 180) {
                 const targetAngle = Math.atan2(player.y - this.y, player.x - this.x);
@@ -366,44 +404,44 @@ class Boss {
                     const angle = targetAngle + (0.22 * dir);
                     for (let b = 1; b <= 5; b++) {
                         const speed = 2.5 + b * 0.6;
-                        bossBullets.push(new Bullet(this.x, this.y, Math.cos(angle) * speed, Math.sin(angle) * speed, 8.5, '#ff5500'));
+                        bossBullets.push(new Bullet(this.x, this.y, Math.cos(angle) * speed, Math.sin(angle) * speed, 8.5 * sizeMult, '#ff5500'));
                     }
                 }
             }
             if (this.patternStep > 190) this.isAttacking = false;
         }
 
-        // 6. 2 Balas Diagonales que Explotan
+        // 6. Explotan en pared
         if (type === 'diagonalWallBurst') {
             if (this.patternStep === 1 || this.patternStep === 80) {
-                bossBullets.push(new WallBurstBullet(this.x, this.y, -3.8, 4.2, 12.0, '#ff00ff', 1));
-                bossBullets.push(new WallBurstBullet(this.x, this.y, 3.8, 4.2, 12.0, '#ff00ff', -1));
+                bossBullets.push(new WallBurstBullet(this.x, this.y, -3.8, 4.2, 12.0 * sizeMult, '#ff00ff', 1));
+                bossBullets.push(new WallBurstBullet(this.x, this.y, 3.8, 4.2, 12.0 * sizeMult, '#ff00ff', -1));
             }
             if (this.patternStep > 120) this.isAttacking = false;
         }
 
-        // 7. ANILLO DE PÉNDULO SUAVE
+        // 7. Péndulo
         if (type === 'pendulumRing') {
             if (this.patternStep % 30 === 0 && this.patternStep <= 210) {
                 const count = 28;
                 for (let i = 0; i < count; i++) {
                     const angle = (Math.PI * 2 / count) * i;
                     bossBullets.push(new PendulumBullet(
-                        this.x, this.y, angle, 2.6, 6.0, '#ff0266'
+                        this.x, this.y, angle, 2.6, 6.0 * sizeMult, '#ff0266'
                     ));
                 }
             }
             if (this.patternStep > 220) this.isAttacking = false;
         }
 
-        // 8. Cruce en X / Doble Espiral Opuesta
+        // 8. Cruce en X
         if (type === 'doubleCrossRing') {
             if (this.patternStep % 30 === 0 && this.patternStep <= 210) {
                 const count = 16;
                 for (let i = 0; i < count; i++) {
                     const angle = (Math.PI * 2 / count) * i;
-                    bossBullets.push(new RotatingBullet(this.x, this.y, angle, 2.4, 6.0, '#00e5ff', 0.018));
-                    bossBullets.push(new RotatingBullet(this.x, this.y, angle, 2.4, 6.0, '#ffea00', -0.018));
+                    bossBullets.push(new RotatingBullet(this.x, this.y, angle, 2.4, 6.0 * sizeMult, '#00e5ff', 0.018));
+                    bossBullets.push(new RotatingBullet(this.x, this.y, angle, 2.4, 6.0 * sizeMult, '#ffea00', -0.018));
                 }
             }
             if (this.patternStep > 220) this.isAttacking = false;
@@ -428,8 +466,10 @@ class Bullet {
     constructor(x, y, vx, vy, radius, color) {
         this.x = x;
         this.y = y;
-        this.vx = vx;
-        this.vy = vy;
+        // Velocidad un 15% más rápida en difícil
+        const speedMult = currentDifficulty === 'hard' ? 1.15 : 0.95;
+        this.vx = vx * speedMult;
+        this.vy = vy * speedMult;
         this.radius = radius;
         this.color = color;
         this.markedForDeletion = false;
@@ -458,8 +498,8 @@ class SimplePauseBullet extends Bullet {
         const vx = Math.cos(angle) * speed;
         const vy = Math.sin(angle) * speed;
         super(x, y, vx, vy, radius, color);
-        this.storedVx = vx;
-        this.storedVy = vy;
+        this.storedVx = this.vx;
+        this.storedVy = this.vy;
         this.pauseStart = 28;
         this.pauseEnd = 48;
         this.timer = 0;
@@ -497,7 +537,7 @@ class PendulumBullet extends Bullet {
         this.startX = startX;
         this.startY = startY;
         this.angle = angle;
-        this.speed = speed;
+        this.speed = speed * (currentDifficulty === 'hard' ? 1.15 : 0.95);
         this.dist = 0;
         this.waveTime = 0;
     }
@@ -534,7 +574,7 @@ class RotatingBullet extends Bullet {
         this.startX = startX;
         this.startY = startY;
         this.angle = angle;
-        this.speed = speed;
+        this.speed = speed * (currentDifficulty === 'hard' ? 1.15 : 0.95);
         this.rotSpeed = rotSpeed;
         this.dist = 0;
     }
@@ -567,7 +607,7 @@ class ReturnCurvedBullet extends Bullet {
     constructor(x, y, angle, speed, radius, color, curveRate) {
         super(x, y, Math.cos(angle) * speed, Math.sin(angle) * speed, radius, color);
         this.angle = angle;
-        this.speed = speed;
+        this.speed = speed * (currentDifficulty === 'hard' ? 1.15 : 0.95);
         this.curveRate = curveRate;
         this.hasReentered = false;
         this.hasBounced = false;
@@ -625,7 +665,8 @@ class WallBurstBullet extends Bullet {
                     this.x, this.y,
                     Math.cos(spreadAngle) * speed,
                     Math.sin(spreadAngle) * speed,
-                    6.0, '#ff9900'
+                    6.0 * (currentDifficulty === 'hard' ? 1.2 : 1.0),
+                    '#ff9900'
                 ));
             }
         }
@@ -646,8 +687,8 @@ class WallBurstBullet extends Bullet {
 }
 
 // --- INICIALIZACIÓN ---
-let player = new Player(canvas.width / 2, canvas.height - 80);
-let boss = new Boss(canvas.width / 2, 120);
+let player;
+let boss;
 let playerBullets = [];
 let bossBullets = [];
 
@@ -658,33 +699,18 @@ function checkCollision(c1, c2) {
 }
 
 function updateUI() {
+    if (!boss || !player) return;
     const hpPercent = Math.max(0, (boss.hp / boss.maxHp) * 100);
     const hpBar = document.getElementById('hp-bar');
     hpBar.style.width = `${hpPercent}%`;
     document.getElementById('hp-text').innerText = `${Math.ceil(hpPercent)}%`;
-
-    const phaseText = document.getElementById('phase-text');
-    const phase = boss.getPhase();
-
-    if (phase === 3) {
-        phaseText.innerText = "MODO PHONK";
-        phaseText.style.color = "#ff0000";
-        hpBar.style.backgroundColor = "#ff0000";
-    } else if (phase === 2) {
-        phaseText.innerText = "MODO PAPOI";
-        phaseText.style.color = "#ffaa00";
-        hpBar.style.backgroundColor = "#ffaa00";
-    } else {
-        phaseText.innerText = "";
-        hpBar.style.backgroundColor = "#00ffff";
-    }
 
     let hearts = '';
     for (let i = 0; i < player.lives; i++) hearts += '❤️';
     document.getElementById('lives-ui').innerText = hearts || '💀';
 }
 
-function endGame(win) {
+function endGame(win, isTroll = false) {
     gameState = win ? 'WIN' : 'LOSE';
     const screen = document.getElementById('game-overlay');
     const title = document.getElementById('over-title');
@@ -692,14 +718,18 @@ function endGame(win) {
 
     screen.style.display = 'flex';
 
-    if (win) {
-        title.innerText = "GANASTE";
+    if (isTroll) {
+        title.innerText = "¡GANASTE!";
         title.style.color = "#00ffff";
-        sub.innerText = "Sos muy sigma";
+        sub.innerText = "WOW! eso de verdad fue fácil, ¿qué te parece si subimos el nivel?";
+    } else if (win) {
+        title.innerText = "¡VICTORIA!";
+        title.style.color = "#00ffff";
+        sub.innerText = "¡Has derrotado al jefe!";
     } else {
-        title.innerText = "PERDISTE";
+        title.innerText = "GAME OVER";
         title.style.color = "#ff0055";
-        sub.innerText = "Triste";
+        sub.innerText = "Te has quedado sin vidas.";
     }
 }
 
@@ -757,6 +787,3 @@ function gameLoop() {
 
     requestAnimationFrame(gameLoop);
 }
-
-updateUI();
-gameLoop();
