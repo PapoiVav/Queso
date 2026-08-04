@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Papoi v1.02.4</title>
+    <title>Papoi v1.02.5</title>
     <style>
         * {
             box-sizing: border-box;
@@ -20,7 +20,8 @@
             min-height: 100vh;
             margin: 0;
             padding: 10px;
-            overflow: hidden; /* Evita barras de desplazamiento */
+            overflow: hidden;
+            user-select: none;
         }
 
         #ui-bar {
@@ -58,7 +59,6 @@
 
         #game-container {
             position: relative;
-            /* Se adapta dinámicamente al alto/ancho de la ventana */
             width: min(600px, 85vw, 80vh);
             height: min(600px, 85vw, 80vh);
         }
@@ -122,7 +122,6 @@
             box-shadow: 0 0 10px #00ffff;
         }
 
-        /* Botón con fuego azul */
         .btn-sigma {
             background: #001122;
             color: #00ffff;
@@ -157,7 +156,6 @@
             margin-top: 15px;
         }
 
-        /* Notificación flotante al centro */
         #toast-notification {
             position: absolute;
             top: 50%;
@@ -197,10 +195,8 @@
     </div>
 
     <div id="game-container">
-        <!-- Notificación flotante al centro -->
         <div id="toast-notification"></div>
 
-        <!-- Pantalla de Selección de Dificultad -->
         <div id="diff-screen" class="overlay">
             <h1>SELECCIONÁ DIFICULTAD</h1>
             <div class="diff-selector">
@@ -212,14 +208,12 @@
             <div id="diff-desc" class="desc-box">Pasá el mouse sobre una dificultad...</div>
         </div>
 
-        <!-- Pantalla de Game Over / Victoria -->
         <div id="game-overlay" class="overlay" style="display: none;">
             <h1 id="over-title">GAME OVER</h1>
             <p id="over-sub" style="text-align: center; max-width: 90%; line-height: 1.4;"></p>
             <button class="restart-btn" onclick="openDifficultyMenu()">VOLVER AL MENÚ</button>
         </div>
 
-        <!-- Atributos internos intactos en 600x600 -->
         <canvas id="gameCanvas" width="600" height="600"></canvas>
     </div>
 

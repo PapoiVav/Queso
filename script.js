@@ -1,14 +1,14 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
-// --- TECLADO Y DETECTOR DE PALABRAS ---
+// --- TECLADO GLOBAL Y DETECTOR DE EASTER EGGS ---
 const keys = {};
 let keyBuffer = '';
 
 window.addEventListener('keydown', e => {
     keys[e.key.toLowerCase()] = true;
 
-    // Guardar teclas para detectar las palabras clave
+    // Acepta letras/números independientemente del estado del juego
     if (e.key.length === 1) {
         keyBuffer += e.key.toLowerCase();
         if (keyBuffer.length > 20) keyBuffer = keyBuffer.substring(1);
@@ -41,12 +41,12 @@ function showToast(text) {
 }
 
 function checkEasterEggWords() {
-    // Paso 1: escribir "papoi" tras ganar fácil
+    // Paso 1: haber ganado en Fácil y escribir "papoi"
     if (secretStep === 1 && keyBuffer.endsWith('papoi')) {
         showToast('papoi?');
-        secretStep = 2; // Habilita el siguiente paso
+        secretStep = 2; // Desbloquea el paso 2 para entrar a difícil
     }
-    // Paso 3: escribir "sigma" tras aguantar los 15s
+    // Paso 3: haber sobrevivido 15s en difícil y escribir "sigma"
     else if (secretStep === 3 && keyBuffer.endsWith('sigma')) {
         showToast('los sigmas están esperando');
         pendingSigmaUnlock = true;
@@ -62,19 +62,13 @@ function selectDifficulty(diff) {
     currentDifficulty = diff;
     document.getElementById('diff-screen').style.display = 'none';
 
-    // Si estás en el paso 2 y te metés a otra cosa que no sea difícil, se reinicia la secuencia
-    if (secretStep === 2 && diff !== 'hard') {
-        secretStep = 0;
-    }
-
     if (diff === 'easy') {
-        secretStep = 1; // Inicia paso 1
+        secretStep = 1; // Marca que se completó fácil para esperar "papoi"
         endGame(true, true);
         return;
     }
 
     if (diff === 'hard' && secretStep === 2) {
-        // Entró a difícil en la secuencia secreta -> Desafío 15s con 1 vida
         startSurvivalChallenge();
         return;
     }
@@ -107,8 +101,8 @@ function startSurvivalChallenge() {
         if (survivalTimer <= 0) {
             clearInterval(survivalInterval);
             survivalInterval = null;
-            secretStep = 3; // Sobrevivió los 15s
-            endGame(true, false, true); // Pantalla "oh si"
+            secretStep = 3; // Pasa al estado final para escribir "sigma"
+            endGame(true, false, true); // Muestra "oh si"
         }
     }, 1000);
 }
@@ -119,7 +113,6 @@ function openDifficultyMenu() {
     document.getElementById('diff-screen').style.display = 'flex';
     document.getElementById('hp-container').style.display = 'block';
 
-    // Si tenías el desbloqueo pendiente y moriste en cualquier dificultad (excepto fácil)
     if (pendingSigmaUnlock) {
         isSigmaUnlocked = true;
         pendingSigmaUnlock = false;
@@ -127,7 +120,7 @@ function openDifficultyMenu() {
     }
 }
 
-// --- ENTIDADES ---
+// --- ENTIDADES Y LOGICA PRINCIPAL ---
 class Player {
     constructor(x, y) {
         this.x = x;
@@ -150,26 +143,11 @@ class Player {
             const isHoming = boss.getPhase() >= 2;
             let fired = false;
 
-            if (keys['arrowup']) {
-                playerBullets.push(new PlayerBullet(this.x, this.y, 0, -9, isHoming));
-                fired = true;
-            }
-            if (keys['arrowdown']) {
-                playerBullets.push(new PlayerBullet(this.x, this.y, 0, 9, isHoming));
-                fired = true;
-            }
-            if (keys['arrowleft']) {
-                playerBullets.push(new PlayerBullet(this.x, this.y, -9, 0, isHoming));
-                fired = true;
-            }
-            if (keys['arrowright']) {
-                playerBullets.push(new PlayerBullet(this.x, this.y, 9, 0, isHoming));
-                fired = true;
-            }
-            if (!fired && keys[' ']) {
-                playerBullets.push(new PlayerBullet(this.x, this.y, 0, -9, isHoming));
-                fired = true;
-            }
+            if (keys['arrowup']) { playerBullets.push(new PlayerBullet(this.x, this.y, 0, -9, isHoming)); fired = true; }
+            if (keys['arrowdown']) { playerBullets.push(new PlayerBullet(this.x, this.y, 0, 9, isHoming)); fired = true; }
+            if (keys['arrowleft']) { playerBullets.push(new PlayerBullet(this.x, this.y, -9, 0, isHoming)); fired = true; }
+            if (keys['arrowright']) { playerBullets.push(new PlayerBullet(this.x, this.y, 9, 0, isHoming)); fired = true; }
+            if (!fired && keys[' ']) { playerBullets.push(new PlayerBullet(this.x, this.y, 0, -9, isHoming)); fired = true; }
 
             if (fired) this.shootCooldown = 7;
         } else {
@@ -808,7 +786,6 @@ function endGame(win, isTroll = false, isSpecialWin = false) {
     const title = document.getElementById('over-title');
     const sub = document.getElementById('over-sub');
 
-    // Cortar el temporizador si el jugador murió durante los 15s
     if (survivalInterval) {
         clearInterval(survivalInterval);
         survivalInterval = null;
@@ -817,7 +794,6 @@ function endGame(win, isTroll = false, isSpecialWin = false) {
 
     screen.style.display = 'flex';
 
-    // Perdió durante la secuencia secreta -> Reinicia el progreso
     if (!win && secretStep > 0) {
         secretStep = 0;
     }
