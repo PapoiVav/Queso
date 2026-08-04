@@ -3,8 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Papoi v1.02.3</title>
+    <title>Papoi v1.02.4</title>
     <style>
+        * {
+            box-sizing: border-box;
+        }
+
         body {
             background-color: #0c0811;
             color: #ffffff;
@@ -15,102 +19,23 @@
             justify-content: center;
             min-height: 100vh;
             margin: 0;
-        }
-
-        #game-container {
-            position: relative;
-            width: 600px;
-            height: 600px;
-        }
-
-        canvas {
-            background-color: #050308;
-            border: 2px solid #3d1e4e;
-            border-radius: 12px;
-            box-shadow: 0 0 25px rgba(255, 0, 85, 0.2);
-        }
-
-        .overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(5, 3, 8, 0.92);
-            border-radius: 12px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            z-index: 10;
-        }
-
-        h1 {
-            color: #00ffff;
-            margin-bottom: 20px;
-            text-shadow: 0 0 10px #00ffff;
-        }
-
-        .diff-selector {
-            display: flex;
-            gap: 15px;
-            margin-bottom: 15px;
-            flex-wrap: wrap;
-            justify-content: center;
-        }
-
-        .btn-diff {
-            background: #1a1026;
-            color: #ffffff;
-            border: 2px solid #3d1e4e;
-            padding: 12px 20px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 1rem;
-            font-weight: bold;
-            transition: all 0.2s;
-        }
-
-        .btn-diff:hover {
-            border-color: #00ffff;
-            box-shadow: 0 0 10px #00ffff;
-        }
-
-        /* Botón prendido fuego azul */
-        .btn-sigma {
-            background: #001122;
-            color: #00ffff;
-            border: 2px solid #00d8ff;
-            box-shadow: 0 0 15px #00ffff, inset 0 0 15px #0088ff;
-            animation: blueFlame 1.2s infinite alternate ease-in-out;
-        }
-
-        @keyframes blueFlame {
-            0% { box-shadow: 0 0 10px #0088ff, 0 -5px 15px #00ffff; }
-            50% { box-shadow: 0 0 20px #00ffff, 0 -12px 25px #0088ff; }
-            100% { box-shadow: 0 0 12px #0055ff, 0 -8px 18px #00d8ff; }
-        }
-
-        .desc-box {
-            font-size: 0.95rem;
-            color: #aaaaaa;
-            min-height: 30px;
-            text-align: center;
-            padding: 0 20px;
-            font-style: italic;
+            padding: 10px;
+            overflow: hidden; /* Evita barras de desplazamiento */
         }
 
         #ui-bar {
-            width: 600px;
+            width: 100%;
+            max-width: 600px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 10px;
+            margin-bottom: 8px;
+            flex-shrink: 0;
         }
 
         .hp-background {
-            width: 60%;
-            height: 18px;
+            width: 50%;
+            height: 16px;
             background: #222;
             border-radius: 9px;
             overflow: hidden;
@@ -127,8 +52,98 @@
         #phase-text {
             font-size: 0.85rem;
             font-weight: bold;
-            min-width: 140px;
+            min-width: 130px;
             text-align: right;
+        }
+
+        #game-container {
+            position: relative;
+            /* Se adapta dinámicamente al alto/ancho de la ventana */
+            width: min(600px, 85vw, 80vh);
+            height: min(600px, 85vw, 80vh);
+        }
+
+        canvas {
+            width: 100%;
+            height: 100%;
+            background-color: #050308;
+            border: 2px solid #3d1e4e;
+            border-radius: 12px;
+            box-shadow: 0 0 25px rgba(255, 0, 85, 0.2);
+            display: block;
+        }
+
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(5, 3, 8, 0.92);
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            padding: 15px;
+            text-align: center;
+        }
+
+        h1 {
+            color: #00ffff;
+            margin-bottom: 15px;
+            font-size: clamp(1.2rem, 3vw, 1.8rem);
+            text-shadow: 0 0 10px #00ffff;
+        }
+
+        .diff-selector {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .btn-diff {
+            background: #1a1026;
+            color: #ffffff;
+            border: 2px solid #3d1e4e;
+            padding: 10px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: clamp(0.85rem, 2vw, 1rem);
+            font-weight: bold;
+            transition: all 0.2s;
+        }
+
+        .btn-diff:hover {
+            border-color: #00ffff;
+            box-shadow: 0 0 10px #00ffff;
+        }
+
+        /* Botón con fuego azul */
+        .btn-sigma {
+            background: #001122;
+            color: #00ffff;
+            border: 2px solid #00d8ff;
+            box-shadow: 0 0 15px #00ffff, inset 0 0 15px #0088ff;
+            animation: blueFlame 1.2s infinite alternate ease-in-out;
+        }
+
+        @keyframes blueFlame {
+            0% { box-shadow: 0 0 10px #0088ff, 0 -5px 15px #00ffff; }
+            50% { box-shadow: 0 0 20px #00ffff, 0 -12px 25px #0088ff; }
+            100% { box-shadow: 0 0 12px #0055ff, 0 -8px 18px #00d8ff; }
+        }
+
+        .desc-box {
+            font-size: clamp(0.75rem, 1.8vw, 0.95rem);
+            color: #aaaaaa;
+            min-height: 25px;
+            text-align: center;
+            padding: 0 10px;
+            font-style: italic;
         }
 
         .restart-btn {
@@ -142,7 +157,7 @@
             margin-top: 15px;
         }
 
-        /* Notificación flotante al centro bien visible */
+        /* Notificación flotante al centro */
         #toast-notification {
             position: absolute;
             top: 50%;
@@ -151,9 +166,9 @@
             background: rgba(5, 3, 8, 0.95);
             border: 2px solid #00ffff;
             color: #00ffff;
-            padding: 20px 30px;
+            padding: 15px 25px;
             border-radius: 12px;
-            font-size: 1.6rem;
+            font-size: clamp(1.1rem, 3vw, 1.6rem);
             font-weight: bold;
             box-shadow: 0 0 30px #00ffff;
             opacity: 0;
@@ -161,6 +176,7 @@
             pointer-events: none;
             z-index: 20;
             text-align: center;
+            width: 80%;
         }
 
         #toast-notification.show {
@@ -181,7 +197,7 @@
     </div>
 
     <div id="game-container">
-        <!-- Notificación flotante para los textos secret -->
+        <!-- Notificación flotante al centro -->
         <div id="toast-notification"></div>
 
         <!-- Pantalla de Selección de Dificultad -->
@@ -199,10 +215,11 @@
         <!-- Pantalla de Game Over / Victoria -->
         <div id="game-overlay" class="overlay" style="display: none;">
             <h1 id="over-title">GAME OVER</h1>
-            <p id="over-sub" style="text-align: center; max-width: 80%; line-height: 1.5;"></p>
+            <p id="over-sub" style="text-align: center; max-width: 90%; line-height: 1.4;"></p>
             <button class="restart-btn" onclick="openDifficultyMenu()">VOLVER AL MENÚ</button>
         </div>
 
+        <!-- Atributos internos intactos en 600x600 -->
         <canvas id="gameCanvas" width="600" height="600"></canvas>
     </div>
 
