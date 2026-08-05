@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Papoi v1.02.7</title>
+    <title>Papoi v1.03.7</title>
     <style>
         * {
             box-sizing: border-box;
@@ -181,6 +181,24 @@
             opacity: 1;
             transform: translate(-50%, -50%) scale(1);
         }
+
+        /* Cartelito BGM */
+        #bgm-ui {
+            position: absolute;
+            bottom: 12px;
+            left: 12px;
+            background: rgba(0, 150, 255, 0.15);
+            border: 1px solid #00d8ff;
+            color: #00ffff;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            display: none;
+            box-shadow: 0 0 10px rgba(0, 216, 255, 0.3);
+            z-index: 15;
+            pointer-events: none;
+        }
     </style>
 </head>
 <body>
@@ -196,7 +214,11 @@
 
     <div id="game-container">
         <div id="toast-notification"></div>
+        
+        <!-- Cartel de Música BGM -->
+        <div id="bgm-ui">🎵 BGM : KISHI KAISEI (White) - Duv, wintiesnowflake</div>
 
+        <!-- Pantalla de Selección de Dificultad -->
         <div id="diff-screen" class="overlay">
             <h1>SELECCIONÁ DIFICULTAD</h1>
             <div class="diff-selector">
@@ -208,6 +230,7 @@
             <div id="diff-desc" class="desc-box">Pasá el mouse sobre una dificultad...</div>
         </div>
 
+        <!-- Pantalla de Game Over / Victoria -->
         <div id="game-overlay" class="overlay" style="display: none;">
             <h1 id="over-title">GAME OVER</h1>
             <p id="over-sub" style="text-align: center; max-width: 90%; line-height: 1.4;"></p>
@@ -216,6 +239,9 @@
 
         <canvas id="gameCanvas" width="600" height="600"></canvas>
     </div>
+
+    <!-- Audio para BGM (Poner la música en la carpeta o usar tu propio Link) -->
+    <audio id="bgm-audio" loop src="bgm.mp3"></audio>
 
     <script src="script.js"></script>
 </body>
