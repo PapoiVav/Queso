@@ -13,19 +13,29 @@ body {
     justify-content: center;
     align-items: center;
     min-height: 100vh;
+    margin: 0;
+    padding: 0;
     overflow: hidden;
 }
 
 #game-container {
     position: relative;
-    width: 600px;
-    height: 700px;
+    width: 100vw;
+    height: 100vh;
+    max-width: 600px;
+    max-height: 700px;
+    aspect-ratio: 6 / 7;
     background-color: #000;
     box-shadow: 0 0 20px rgba(0, 255, 255, 0.2);
     border: 2px solid #222;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 
 #gameCanvas {
+    width: 100%;
+    height: 100%;
     background-color: #080810;
     display: block;
 }
@@ -66,6 +76,16 @@ body {
     font-weight: bold;
     color: #fff;
     text-shadow: 0 0 4px #000;
+}
+
+/* RELOJ DE SUPERVIVENCIA */
+#survival-ui {
+    font-size: 1.4rem;
+    font-weight: bold;
+    color: #00ffff;
+    text-align: center;
+    text-shadow: 0 0 10px #00ffff;
+    margin-bottom: 4px;
 }
 
 #phase-text {
@@ -148,16 +168,31 @@ body {
     box-shadow: 0 0 15px #00ffff;
 }
 
+/* BOTÓN SIGMA PRENDIDO FUEGO */
 .sigma-btn {
     display: none;
-    border-color: #ff0055;
-    color: #ff0055;
+    border-color: #ff3300;
+    color: #ffaa00;
+    background: linear-gradient(180deg, rgba(255, 51, 0, 0.2), rgba(255, 153, 0, 0.2));
+    animation: firePulse 1.2s infinite alternate;
+    text-shadow: 0 0 8px #ff3300;
 }
 
 .sigma-btn:hover {
-    background-color: #ff0055;
-    color: #fff;
-    box-shadow: 0 0 15px #ff0055;
+    background: #ff3300;
+    color: #ffffff;
+    box-shadow: 0 0 25px #ff3300, 0 0 40px #ff9900;
+}
+
+@keyframes firePulse {
+    0% {
+        box-shadow: 0 0 10px #ff3300, inset 0 0 5px #ff9900;
+        border-color: #ff3300;
+    }
+    100% {
+        box-shadow: 0 0 22px #ff6600, inset 0 0 12px #ffcc00;
+        border-color: #ffaa00;
+    }
 }
 
 #diff-desc {

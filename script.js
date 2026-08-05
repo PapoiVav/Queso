@@ -1,6 +1,9 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
+canvas.width = 600;
+canvas.height = 700;
+
 // --- TECLADO GLOBAL Y DETECTOR DE EASTER EGGS ---
 const keys = {};
 let keyBuffer = '';
@@ -122,11 +125,18 @@ function startSurvivalChallenge() {
     player.maxLives = 1;
     updateUI();
 
+    const bgmUi = document.getElementById('bgm-ui');
+    if (bgmUi) bgmUi.classList.remove('show');
+
     survivalTimer = 15;
     const hpCont = document.getElementById('hp-container');
     if (hpCont) hpCont.style.display = 'none';
-    const hpTxt = document.getElementById('hp-text');
-    if (hpTxt) hpTxt.innerText = `⏱️ ${survivalTimer}s`;
+    
+    const survivalUi = document.getElementById('survival-ui');
+    if (survivalUi) {
+        survivalUi.style.display = 'block';
+        survivalUi.innerText = `⏱️ ${survivalTimer}s`;
+    }
 
     if (survivalInterval) clearInterval(survivalInterval);
 
@@ -138,7 +148,7 @@ function startSurvivalChallenge() {
         }
 
         survivalTimer--;
-        if (hpTxt) hpTxt.innerText = `⏱️ ${survivalTimer}s`;
+        if (survivalUi) survivalUi.innerText = `⏱️ ${survivalTimer}s`;
 
         if (survivalTimer <= 0) {
             clearInterval(survivalInterval);
@@ -158,6 +168,9 @@ function openDifficultyMenu() {
     const hpCont = document.getElementById('hp-container');
     if (hpCont) hpCont.style.display = 'block';
     
+    const survivalUi = document.getElementById('survival-ui');
+    if (survivalUi) survivalUi.style.display = 'none';
+
     const bgmUi = document.getElementById('bgm-ui');
     if (bgmUi) bgmUi.classList.remove('show');
 
@@ -190,13 +203,12 @@ function triggerSigmaTransformation() {
         boss.hp = 2600;
         boss.color = '#00ffff';
         
-        // Conservar corazones según las reglas
         player.maxLives = 6;
         if (player.lives <= 3) {
             player.lives = 4;
         }
 
-        showBGMNotification('🎵 BGM: TRUE SIGMA');
+        showBGMNotification('🎵 BGM: KISHI KAISEI (White) - Duv, witiesnowflake');
         const bgm = document.getElementById('bgm-audio');
         if (bgm) bgm.play().catch(() => console.log("Audio interact requirement"));
 
@@ -352,7 +364,7 @@ class Boss {
         this.radius = 32;
         
         if (currentDifficulty === 'sigma') {
-            this.maxHp = 300; // Fase 1 con 300 de HP
+            this.maxHp = 300;
         } else {
             this.maxHp = currentDifficulty === 'hard' ? 2420 : 1800;
         }
@@ -530,7 +542,7 @@ class Boss {
 
         if (currentDifficulty === 'sigma' && isSigmaTrueForm) {
             sigmaSlowRingTimer++;
-            if (sigmaSlowRingTimer >= 330) {
+            if (sigmaSlowRingTimer >= 180) {
                 this.spawnPeriodicSlowRing();
                 sigmaSlowRingTimer = 0;
             }
@@ -608,6 +620,10 @@ class Boss {
         if (type === 'sigmaFastSpiralTriangle') {
             const stepInCycle = this.patternStep % 60;
             
+            if (stepInCycle === 1) {
+                this.angleOffset = Math.PI / 2;
+            }
+
             if (stepInCycle <= 20 && stepInCycle % 2 === 0 && this.patternStep <= 180) {
                 this.angleOffset += 0.35;
                 bossBullets.push(new SlowingBullet(this.x, this.y, Math.cos(this.angleOffset) * 7.2, Math.sin(this.angleOffset) * 7.2, 14, '#00ffff'));
@@ -1241,17 +1257,17 @@ function updateUI() {
         const phaseText = document.getElementById('phase-text');
         if (phaseText && hpBar) {
             if (isSigmaTrueForm) {
-                phaseText.innerText = "⚡ MODO SIGMA ⚡";
+                phaseText.innerText = "GENERAL SIGMA";
                 phaseText.style.color = "#00ffff";
                 hpBar.style.backgroundColor = "#00ffff";
             } else {
                 const phase = boss.getPhase();
                 if (phase === 3) {
-                    phaseText.innerText = "🔥 FASE 3: ¡FRENESÍ!";
+                    phaseText.innerText = "FASE 3: OH NO";
                     phaseText.style.color = "#ff0000";
                     hpBar.style.backgroundColor = "#ff0000";
                 } else if (phase === 2) {
-                    phaseText.innerText = "⚡ FASE 2: TELEDIRIGIDAS";
+                    phaseText.innerText = "FASE 2: PAPOI";
                     phaseText.style.color = "#ffaa00";
                     hpBar.style.backgroundColor = "#ffaa00";
                 } else {
@@ -1265,7 +1281,7 @@ function updateUI() {
     let hearts = '';
     for (let i = 0; i < player.lives; i++) hearts += '❤️';
     const livesUi = document.getElementById('lives-ui');
-    if (livesUi) livesUi.innerText = hearts || '💀';
+    if (livesUi) livesUi.innerText = hearts || 'Wooju Wooju';
 }
 
 function endGame(win, isTroll = false, isSpecialWin = false) {
@@ -1279,6 +1295,9 @@ function endGame(win, isTroll = false, isSpecialWin = false) {
         survivalInterval = null;
     }
     survivalTimer = 0;
+
+    const survivalUi = document.getElementById('survival-ui');
+    if (survivalUi) survivalUi.style.display = 'none';
 
     if (screen) screen.style.display = 'flex';
 
@@ -1302,7 +1321,7 @@ function endGame(win, isTroll = false, isSpecialWin = false) {
         if (title) { title.innerText = "¡GANASTE!"; title.style.color = "#00ffff"; }
         if (sub) sub.innerText = "WOW! eso de verdad fue fácil, ¿qué te parece si subimos el nivel?";
     } else if (win) {
-        if (title) { title.innerText = "¡VICTORIA!"; title.style.color = "#00ffff"; }
+        if (title) { title.innerText = "GANASTE"; title.style.color = "#00ffff"; }
         
         if (sub) {
             if (currentDifficulty === 'normal') {
@@ -1314,14 +1333,18 @@ function endGame(win, isTroll = false, isSpecialWin = false) {
             }
         }
     } else {
-        if (title) { title.innerText = "GAME OVER"; title.style.color = "#ff0055"; }
-        if (sub) sub.innerText = "Te has quedado sin vidas.";
+        if (title) { title.innerText = "PERDISTE"; title.style.color = "#ff0055"; }
+        if (sub) sub.innerText = "Triste.";
     }
 }
 
 function restartGame() {
     const overlay = document.getElementById('game-overlay');
     if (overlay) overlay.style.display = 'none';
+    
+    const survivalUi = document.getElementById('survival-ui');
+    if (survivalUi) survivalUi.style.display = 'none';
+
     player = new Player(canvas.width / 2, canvas.height - 80);
     boss = new Boss(canvas.width / 2, 120);
     playerBullets = [];
@@ -1338,7 +1361,7 @@ function restartGame() {
     lastTime = performance.now();
     
     updateUI();
-    showBGMNotification('🎵 BGM: Boss Battle');
+    showBGMNotification('');
     requestAnimationFrame(gameLoop);
 }
 

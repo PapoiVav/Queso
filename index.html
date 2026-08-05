@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Papoi v1.06.3</title>
+    <title>Papoi v1.06.9</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -15,6 +15,8 @@
                 <div id="hp-bar"></div>
                 <span id="hp-text">100%</span>
             </div>
+            <!-- Contador de Supervivencia dedicado -->
+            <div id="survival-ui" style="display: none;">⏱️ 15s</div>
             <div id="phase-text"></div>
             <div id="lives-ui">❤️❤️❤️❤️❤️❤️</div>
             <div id="bgm-ui">🎵 BGM: Active</div>
@@ -30,7 +32,7 @@
                 <button class="btn-diff" onclick="selectDifficulty('easy')">FÁCIL</button>
                 <button class="btn-diff" onclick="selectDifficulty('normal')">NORMAL</button>
                 <button class="btn-diff" onclick="selectDifficulty('hard')">DIFÍCIL</button>
-                <button id="btn-sigma-secret" class="btn-diff sigma-btn" onclick="selectDifficulty('sigma')">⚡ MODO SIGMA ⚡</button>
+                <button id="btn-sigma-secret" class="btn-diff sigma-btn" onclick="selectDifficulty('sigma')"> SIGMA </button>
             </div>
             <p id="diff-desc">Seleccioná un nivel para empezar</p>
         </div>
@@ -46,7 +48,7 @@
         <div id="toast-notification"></div>
     </div>
 
-    <!-- Audio BGM opcional -->
+    <!-- Audio BGM -->
     <audio id="bgm-audio" src="bgm.mp3" loop></audio>
 
     <script src="script.js"></script>
