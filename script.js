@@ -328,7 +328,7 @@ class Boss {
         this.radius = 32;
         
         if (currentDifficulty === 'sigma') {
-            this.maxHp = 100;
+            this.maxHp = 150; // Ajustado a 150 HP para la primer fase
         } else {
             this.maxHp = currentDifficulty === 'hard' ? 2420 : 1800;
         }
@@ -466,7 +466,6 @@ class Boss {
     }
 
     spawnIntercalatedMicroBullets(count = 3, speed = 3.5) {
-        // Aumentado a 7px de radio para que sean bien visibles
         const baseAngle = Math.random() * Math.PI * 2;
         for (let i = 0; i < count; i++) {
             const angle = baseAngle + (Math.PI * 2 / count) * i;
@@ -1166,7 +1165,7 @@ function endGame(win, isTroll = false, isSpecialWin = false) {
         if (sub) sub.innerText = "";
     } else if (isTroll) {
         if (title) { title.innerText = "¡GANASTE!"; title.style.color = "#00ffff"; }
-        if (sub) sub.innerText = "WOW! Eso de verdad fue fácil, ¿qué te parece si subimos el nivel?";
+        if (sub) sub.innerText = "WOW! eso de verdad fue fácil, ¿qué te parece si subimos el nivel?";
     } else if (win) {
         if (title) { title.innerText = "GANASTE"; title.style.color = "#00ffff"; }
         
@@ -1180,8 +1179,8 @@ function endGame(win, isTroll = false, isSpecialWin = false) {
             }
         }
     } else {
-        if (title) { title.innerText = "Perdiste"; title.style.color = "#ff0055"; }
-        if (sub) sub.innerText = "Triste";
+        if (title) { title.innerText = "PERDISTE"; title.style.color = "#ff0055"; }
+        if (sub) sub.innerText = "Triste.";
     }
 }
 
