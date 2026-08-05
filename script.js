@@ -4,12 +4,14 @@ const ctx = canvas.getContext('2d');
 // --- TECLADO GLOBAL Y DETECTOR DE EASTER EGGS ---
 const keys = {};
 let keyBuffer = '';
+let isGodMode = false; 
 
 window.addEventListener('keydown', e => {
-    keys[e.key.toLowerCase()] = true;
+    const key = e.key.toLowerCase();
+    keys[key] = true;
 
     if (e.key.length === 1) {
-        keyBuffer += e.key.toLowerCase();
+        keyBuffer += key;
         if (keyBuffer.length > 20) keyBuffer = keyBuffer.substring(1);
 
         checkEasterEggWords();
@@ -34,13 +36,17 @@ let isUltimateActive = false;
 let isBossImmune = false;
 let minions = [];
 
+// Temporizador del anillo periódico distintivo y BGM
+let sigmaSlowRingTimer = 0;
+let bgmTimeout = null;
+
 // Temporizador de supervivencia
 let survivalTimer = 0;
 let survivalInterval = null;
 
 // Control de FPS Global
 let lastTime = 0;
-const fpsInterval = 1000 / 60; // ~16.66ms (60 FPS)
+const fpsInterval = 1000 / 60;
 
 function showToast(text) {
     const toast = document.getElementById('toast-notification');
@@ -50,6 +56,20 @@ function showToast(text) {
         setTimeout(() => {
             toast.classList.remove('show');
         }, 2200);
+    }
+}
+
+function showBGMNotification(text) {
+    const bgmUi = document.getElementById('bgm-ui');
+    if (bgmUi) {
+        if (text) bgmUi.innerText = text;
+        bgmUi.classList.add('show');
+
+        if (bgmTimeout) clearTimeout(bgmTimeout);
+
+        bgmTimeout = setTimeout(() => {
+            bgmUi.classList.remove('show');
+        }, 3000);
     }
 }
 
@@ -137,15 +157,16 @@ function openDifficultyMenu() {
     if (diffScreen) diffScreen.style.display = 'flex';
     const hpCont = document.getElementById('hp-container');
     if (hpCont) hpCont.style.display = 'block';
+    
     const bgmUi = document.getElementById('bgm-ui');
-    if (bgmUi) bgmUi.style.display = 'none';
+    if (bgmUi) bgmUi.classList.remove('show');
 
     const bgm = document.getElementById('bgm-audio');
     if (bgm) { bgm.pause(); bgm.currentTime = 0; }
 
     const sigmaBtn = document.getElementById('btn-sigma-secret');
     if (sigmaBtn) {
-        if (pendingSigmaUnlock) {
+        if (pendingSigmaUnlock || isSigmaUnlocked) {
             isSigmaUnlocked = true;
             pendingSigmaUnlock = false;
             sigmaBtn.style.display = 'block';
@@ -168,11 +189,14 @@ function triggerSigmaTransformation() {
         boss.maxHp = 2600;
         boss.hp = 2600;
         boss.color = '#00ffff';
-        player.lives = 3;
-        player.maxLives = 3;
+        
+        // Conservar corazones según las reglas
+        player.maxLives = 6;
+        if (player.lives <= 3) {
+            player.lives = 4;
+        }
 
-        const bgmUi = document.getElementById('bgm-ui');
-        if (bgmUi) bgmUi.style.display = 'block';
+        showBGMNotification('🎵 BGM: TRUE SIGMA');
         const bgm = document.getElementById('bgm-audio');
         if (bgm) bgm.play().catch(() => console.log("Audio interact requirement"));
 
@@ -191,7 +215,7 @@ class Player {
         this.radius = 3;
         this.speed = 4.5;
         this.shootCooldown = 0;
-        this.maxLives = (currentDifficulty === 'hard' || currentDifficulty === 'sigma') ? 4 : 6;
+        this.maxLives = (currentDifficulty === 'hard') ? 4 : 6;
         this.lives = this.maxLives;
         this.invulnerableTimer = 0;
     }
@@ -223,7 +247,7 @@ class Player {
     }
 
     hit() {
-        if (this.invulnerableTimer > 0 || isScreenFrozen) return;
+        if (this.invulnerableTimer > 0 || isScreenFrozen || isGodMode) return;
         this.lives--;
         this.invulnerableTimer = 60;
         updateUI();
@@ -238,15 +262,15 @@ class Player {
 
         ctx.beginPath();
         ctx.arc(this.x, this.y, 11, 0, Math.PI * 2);
-        ctx.strokeStyle = '#00ffff';
-        ctx.lineWidth = 1;
+        ctx.strokeStyle = isGodMode ? '#ffcc00' : '#00ffff';
+        ctx.lineWidth = isGodMode ? 2 : 1;
         ctx.stroke();
         ctx.closePath();
 
         ctx.beginPath();
         ctx.arc(this.x, this.y, 6.5, 0, Math.PI * 2);
-        ctx.fillStyle = '#00ffff';
-        ctx.shadowColor = '#00ffff';
+        ctx.fillStyle = isGodMode ? '#ffcc00' : '#00ffff';
+        ctx.shadowColor = isGodMode ? '#ffcc00' : '#00ffff';
         ctx.shadowBlur = 10;
         ctx.fill();
         ctx.closePath();
@@ -328,7 +352,7 @@ class Boss {
         this.radius = 32;
         
         if (currentDifficulty === 'sigma') {
-            this.maxHp = 150; // Ajustado a 150 HP para la primer fase
+            this.maxHp = 300; // Fase 1 con 300 de HP
         } else {
             this.maxHp = currentDifficulty === 'hard' ? 2420 : 1800;
         }
@@ -345,6 +369,9 @@ class Boss {
         this.color = '#ff0055';
         this.isMovingFast = false;
         this.moveTargetX = x;
+        this.orbitAngle = 0;
+        this.movingToCenter = false;
+        this.isDamageReduced = false;
     }
 
     getPhase() {
@@ -364,12 +391,28 @@ class Boss {
         if (isScreenFrozen) return;
 
         if (currentDifficulty === 'sigma' && isSigmaTrueForm && (this.hp / this.maxHp) <= 0.20 && !isUltimateActive) {
-            isUltimateActive = true;
-            isBossImmune = true;
+            this.movingToCenter = true;
+            this.isDamageReduced = true;
         }
 
-        if (isBossImmune && bossBullets.length === 0) {
-            isBossImmune = false;
+        if (this.movingToCenter) {
+            const centerX = canvas.width / 2;
+            const centerY = 120;
+            const dx = centerX - this.x;
+            const dy = centerY - this.y;
+            const dist = Math.hypot(dx, dy);
+
+            if (dist > 5) {
+                this.x += (dx / dist) * 6;
+                this.y += (dy / dist) * 6;
+                return;
+            } else {
+                this.x = centerX;
+                this.y = centerY;
+                this.movingToCenter = false;
+                this.isDamageReduced = false;
+                isUltimateActive = true;
+            }
         }
 
         this.attackTimer--;
@@ -382,7 +425,7 @@ class Boss {
                     this.isMovingFast = false;
                 }
                 return;
-            } else if (Math.random() < 0.008 && !this.isAttacking) {
+            } else if (Math.random() < 0.008 && !this.isAttacking && !isUltimateActive) {
                 this.isMovingFast = true;
                 this.moveTargetX = 80 + Math.random() * (canvas.width - 160);
                 return;
@@ -407,7 +450,7 @@ class Boss {
             }
         }
 
-        if (this.attackTimer <= 0) {
+        if (this.attackTimer <= 0 && !this.isAttacking) {
             this.selectNextPatterns();
             if (currentDifficulty === 'sigma' && isSigmaTrueForm) {
                 this.attackTimer = 480;
@@ -465,11 +508,15 @@ class Boss {
         }
     }
 
-    spawnIntercalatedMicroBullets(count = 3, speed = 3.5) {
+    spawnPeriodicSlowRing() {
+        const count = 18;
         const baseAngle = Math.random() * Math.PI * 2;
+        const ringSpeed = 3.6;
+        const rotSpeed = 0.012;
+
         for (let i = 0; i < count; i++) {
             const angle = baseAngle + (Math.PI * 2 / count) * i;
-            bossBullets.push(new Bullet(this.x, this.y, Math.cos(angle) * speed, Math.sin(angle) * speed, 7, '#00ffff'));
+            bossBullets.push(new RotatingBullet(this.x, this.y, angle, ringSpeed, 10, '#00ffaa', rotSpeed));
         }
     }
 
@@ -481,31 +528,56 @@ class Boss {
         const microBulletRadius = 4.5 * sizeMult; 
         const phase = this.getPhase();
 
-        // --- ATAQUES MODO SIGMA ---
-        
         if (currentDifficulty === 'sigma' && isSigmaTrueForm) {
-            if (this.patternStep % 18 === 9) {
-                this.spawnIntercalatedMicroBullets(4, 3.8);
+            sigmaSlowRingTimer++;
+            if (sigmaSlowRingTimer >= 330) {
+                this.spawnPeriodicSlowRing();
+                sigmaSlowRingTimer = 0;
             }
         }
 
+        // --- ATAQUES MODO SIGMA ---
+
         if (type === 'sigmaDualSpiral') {
-            if (this.patternStep % 3 === 0 && this.patternStep < 450) {
-                this.angleOffset += 0.12;
-                bossBullets.push(new SlowingBullet(40, this.y, Math.cos(this.angleOffset) * 6.0, Math.sin(this.angleOffset) * 6.0, 16, '#00ffff'));
-                bossBullets.push(new SlowingBullet(canvas.width - 40, this.y, Math.cos(-this.angleOffset) * 6.0, Math.sin(-this.angleOffset) * 6.0, 16, '#00ffff'));
+            this.orbitAngle += 0.16;
+            const orbitDist = 50;
+
+            const orb1X = this.x + Math.cos(this.orbitAngle) * orbitDist;
+            const orb1Y = this.y + Math.sin(this.orbitAngle) * orbitDist;
+            const orb2X = this.x + Math.cos(-this.orbitAngle) * orbitDist;
+            const orb2Y = this.y + Math.sin(-this.orbitAngle) * orbitDist;
+
+            if (this.patternStep % 2 === 0 && this.patternStep < 320) {
+                this.angleOffset += 0.22;
+                bossBullets.push(new SlowingBullet(orb1X, orb1Y, Math.cos(this.angleOffset) * 7.5, Math.sin(this.angleOffset) * 7.5, 12, '#00ffff'));
+                bossBullets.push(new SlowingBullet(orb2X, orb2Y, Math.cos(-this.angleOffset) * 7.5, Math.sin(-this.angleOffset) * 7.5, 12, '#00ffff'));
             }
-            if (this.patternStep % 60 === 0 && this.patternStep < 450) {
-                for (let i = 0; i < 8; i++) {
-                    const angle = (Math.PI * 2 / 8) * i;
-                    bossBullets.push(new SlowingBullet(this.x, this.y, Math.cos(angle) * 5.0, Math.sin(angle) * 5.0, 28, '#0088ff'));
+
+            if (this.patternStep % 55 === 0 && this.patternStep < 320) {
+                const randomOffsetAngle = Math.random() * Math.PI * 2;
+                for (let i = 0; i < 10; i++) {
+                    const angle = (Math.PI * 2 / 10) * i + randomOffsetAngle;
+                    bossBullets.push(new Bullet(this.x, this.y, Math.cos(angle) * 5.2, Math.sin(angle) * 5.2, 34, '#0088ff'));
                 }
             }
-            if (this.patternStep >= 450) this.isAttacking = false;
+
+            if (this.patternStep % 45 === 0 && this.patternStep < 320) {
+                const targetAngle = Math.atan2(player.y - this.y, player.x - this.x);
+                const triSpeed = 7.5;
+                
+                bossBullets.push(new Bullet(this.x, this.y, Math.cos(targetAngle) * (triSpeed + 1.2), Math.sin(targetAngle) * (triSpeed + 1.2), 9, '#ffffff'));
+                const sideSpread = 0.16;
+                bossBullets.push(new Bullet(this.x, this.y, Math.cos(targetAngle + sideSpread) * triSpeed, Math.sin(targetAngle + sideSpread) * triSpeed, 8, '#ffffff'));
+                bossBullets.push(new Bullet(this.x, this.y, Math.cos(targetAngle - sideSpread) * triSpeed, Math.sin(targetAngle - sideSpread) * triSpeed, 8, '#ffffff'));
+            }
+
+            if (this.patternStep >= 340) {
+                this.isAttacking = false;
+            }
         }
 
         if (type === 'sigmaRandomBurst') {
-            if (this.patternStep % 15 === 0 && this.patternStep < 380) {
+            if (this.patternStep % 15 === 0 && this.patternStep < 250) {
                 const count = 8 + Math.floor(Math.random() * 4);
                 for (let i = 0; i < count; i++) {
                     const angle = (Math.PI * 2 / count) * i + Math.random() * 0.2;
@@ -513,62 +585,69 @@ class Boss {
                     bossBullets.push(new SlowingBullet(this.x, this.y, Math.cos(angle) * 6.0, Math.sin(angle) * 6.0, r, '#ffffff'));
                 }
             }
-            if (this.patternStep >= 380) this.isAttacking = false;
+            if (this.patternStep >= 270) this.isAttacking = false;
         }
 
         if (type === 'sigma8FastRings' || type === 'sigma5FastRings') {
-            if (this.patternStep % 22 === 0 && this.patternStep <= 176) {
-                const ringNum = Math.floor(this.patternStep / 22);
-                const count = 18;
+            if (this.patternStep % 26 === 0 && this.patternStep <= 250) {
+                const count = 28;
+                const isTargetWave = (this.patternStep % 78 === 0);
 
                 for (let i = 0; i < count; i++) {
-                    const angle = (Math.PI * 2 / count) * i;
-                    if (ringNum === 4) {
-                        bossBullets.push(new FrozenHomingBullet(this.x, this.y, angle, 6.5, 18, '#00ffff'));
+                    const randomAngle = Math.random() * Math.PI * 2;
+                    if (isTargetWave) {
+                        bossBullets.push(new FrozenHomingBullet(this.x, this.y, randomAngle, 9.5, 12, '#ffee00'));
                     } else {
-                        bossBullets.push(new SlowingBullet(this.x, this.y, Math.cos(angle) * 6.8, Math.sin(angle) * 6.8, 18, '#00d8ff'));
+                        bossBullets.push(new SlowingBullet(this.x, this.y, Math.cos(randomAngle) * 7.2, Math.sin(randomAngle) * 7.2, 16, '#00d8ff'));
                     }
                 }
             }
-            if (this.patternStep > 260) this.isAttacking = false;
+            if (this.patternStep > 270) this.isAttacking = false;
         }
 
         if (type === 'sigmaFastSpiralTriangle') {
-            if (this.patternStep % 2 === 0 && this.patternStep <= 100) {
-                this.angleOffset += 0.25;
-                bossBullets.push(new SlowingBullet(this.x, this.y, Math.cos(this.angleOffset) * 7.0, Math.sin(this.angleOffset) * 7.0, 15, '#00ffff'));
+            const stepInCycle = this.patternStep % 60;
+            
+            if (stepInCycle <= 20 && stepInCycle % 2 === 0 && this.patternStep <= 180) {
+                this.angleOffset += 0.35;
+                bossBullets.push(new SlowingBullet(this.x, this.y, Math.cos(this.angleOffset) * 7.2, Math.sin(this.angleOffset) * 7.2, 14, '#00ffff'));
+            } 
+            else if (stepInCycle > 20 && stepInCycle <= 40 && stepInCycle % 2 === 0 && this.patternStep <= 180) {
+                this.angleOffset -= 0.35;
+                bossBullets.push(new SlowingBullet(this.x, this.y, Math.cos(this.angleOffset) * 7.2, Math.sin(this.angleOffset) * 7.2, 14, '#00ffff'));
             }
-            if (this.patternStep === 110) {
-                const targetAngle = Math.atan2(player.y - this.y, player.x - this.x);
-                for (let dir = -1; dir <= 1; dir++) {
-                    const angle = targetAngle + (0.18 * dir);
-                    bossBullets.push(new SlowingBullet(this.x, this.y, Math.cos(angle) * 8.0, Math.sin(angle) * 8.0, 20, '#ffffff'));
-                }
-            }
-            if (this.patternStep > 150) this.isAttacking = false;
+
+            if (this.patternStep > 210) this.isAttacking = false;
         }
 
         if (type === 'sigmaMinionSpirals') {
             if (this.patternStep === 1) {
                 minions = [
-                    { x: this.x - 120, y: this.y + 40, angle: 0 },
-                    { x: this.x + 120, y: this.y + 40, angle: 0 }
+                    { x: this.x - 120, y: this.y + 40, angle: 0, fastAngle: 0 },
+                    { x: this.x + 120, y: this.y + 40, angle: 0, fastAngle: 0 }
                 ];
             }
-            if (this.patternStep % 4 === 0 && this.patternStep < 350) {
+
+            if (this.patternStep % 5 === 0 && this.patternStep < 250) {
                 minions.forEach(m => {
                     m.angle += 0.15;
-                    bossBullets.push(new SlowingBullet(m.x, m.y, Math.cos(m.angle) * 4.8, Math.sin(m.angle) * 4.8, 14, '#00ffff'));
+                    m.fastAngle += 0.45;
+
+                    bossBullets.push(new SlowingBullet(m.x, m.y, Math.cos(m.angle) * 4.8, Math.sin(m.angle) * 4.8, 15, '#00ffff'));
+                    bossBullets.push(new Bullet(m.x, m.y, Math.cos(-m.fastAngle) * 5.2, Math.sin(-m.fastAngle) * 5.2, 6, '#ffffff'));
                 });
             }
-            if (this.patternStep % 85 === 0 && this.patternStep < 350) {
-                const targetAngle = Math.atan2(player.y - this.y, player.x - this.x);
-                for (let i = -2; i <= 2; i++) {
-                    const angle = targetAngle + (0.12 * i);
-                    bossBullets.push(new SlowingBullet(this.x, this.y, Math.cos(angle) * 5.5, Math.sin(angle) * 5.5, 18, '#ffffff'));
+
+            if (this.patternStep % 40 === 0 && this.patternStep < 250) {
+                const count = 16;
+                const offset = Math.random() * Math.PI * 2;
+                for (let i = 0; i < count; i++) {
+                    const angle = (Math.PI * 2 / count) * i + offset;
+                    bossBullets.push(new SimplePauseBullet(this.x, this.y, angle, 6.0, 14, '#ff0055'));
                 }
             }
-            if (this.patternStep >= 360) {
+
+            if (this.patternStep >= 270) {
                 minions = [];
                 this.isAttacking = false;
             }
@@ -577,9 +656,9 @@ class Boss {
         if (type === 'sigmaFreezingRings') {
             if (this.patternStep % 16 === 0 && this.patternStep <= 220) {
                 const count = 18;
-                const offset = Math.random();
+                const randomOffset = Math.random() * Math.PI * 2;
                 for (let i = 0; i < count; i++) {
-                    const angle = (Math.PI * 2 / count) * i + offset;
+                    const angle = (Math.PI * 2 / count) * i + randomOffset;
                     bossBullets.push(new SideFloatingBullet(this.x, this.y, Math.cos(angle) * 9.5, Math.sin(angle) * 9.5, 16, '#00ffff'));
                 }
             }
@@ -588,23 +667,93 @@ class Boss {
                 bossBullets.forEach(b => {
                     if (b instanceof SideFloatingBullet) b.freezeAndFloatSide();
                 });
+
+                for (let r = 0; r < 2; r++) {
+                    setTimeout(() => {
+                        if (boss && gameState === 'PLAYING') {
+                            const offset = Math.random() * Math.PI * 2;
+                            for (let i = 0; i < 6; i++) {
+                                const angle = (Math.PI * 2 / 6) * i + offset;
+                                bossBullets.push(new Bullet(boss.x, boss.y, Math.cos(angle) * 4.5, Math.sin(angle) * 4.5, 36, '#ff0055'));
+                            }
+                        }
+                    }, r * 280);
+                }
             }
-            if (this.patternStep > 340) this.isAttacking = false;
+            if (this.patternStep > 310) this.isAttacking = false;
         }
 
         if (type === 'sigmaUltimate') {
-            if (this.patternStep % 14 === 0) {
-                const angle = Math.random() * Math.PI * 2;
-                bossBullets.push(new UltimateBullet(this.x, this.y, Math.cos(angle) * 5.5, Math.sin(angle) * 5.5, 40 + Math.random() * 15, '#00ffff'));
+            if (this.patternStep % 2 === 0 && this.patternStep < 150) {
+                const angle = Math.random() * Math.PI * 2; 
+                const speed = 4.0 + Math.random() * 6.5;
+                const radius = 6 + Math.random() * 14;
+
+                bossBullets.push(new SlowingBullet(
+                    this.x + (Math.random() - 0.5) * 160, 
+                    this.y + (Math.random() - 0.5) * 60, 
+                    Math.cos(angle) * speed, 
+                    Math.sin(angle) * speed, 
+                    radius, 
+                    '#00ffff'
+                ));
             }
 
-            if (this.patternStep % 80 === 0) {
-                const ringCount = 16;
-                const offsetAngle = Math.random() * Math.PI;
+            if (this.patternStep === 155) {
+                triggerScreenShake(30);
+                bossBullets.forEach(b => {
+                    b.vx = 0;
+                    b.vy = 0;
+                    if ('currentSpeed' in b) b.currentSpeed = 0;
+                    b.color = '#555555';
+                    b.isUltFrozen = true;
+                });
+            }
+
+            if (this.patternStep >= 170 && (this.patternStep - 170) % 35 === 0 && this.patternStep <= 280) {
+                const ringCount = 18;
+                const isTargetRing = (this.patternStep === 205 || this.patternStep === 275);
+                const targetAngle = isTargetRing ? Math.atan2(player.y - this.y, player.x - this.x) : Math.random() * Math.PI * 2;
+
                 for (let i = 0; i < ringCount; i++) {
-                    const angle = (Math.PI * 2 / ringCount) * i + offsetAngle;
-                    bossBullets.push(new SlowingBullet(this.x, this.y, Math.cos(angle) * 4.8, Math.sin(angle) * 4.8, 20, '#00d8ff'));
+                    const angle = (Math.PI * 2 / ringCount) * i + targetAngle;
+                    if (isTargetRing) {
+                        bossBullets.push(new Bullet(this.x, this.y, Math.cos(angle) * 8.0, Math.sin(angle) * 8.0, 18, '#ffffff'));
+                    } else {
+                        bossBullets.push(new SlowingBullet(this.x, this.y, Math.cos(angle) * 5.5, Math.sin(angle) * 5.5, 16, '#00d8ff'));
+                    }
                 }
+            }
+
+            if (this.patternStep === 290) {
+                triggerScreenShake(20);
+                bossBullets.forEach(b => {
+                    if (b.isUltFrozen) {
+                        b.isUltFrozen = false;
+                        const floatAngle = (Math.PI * 0.25) + Math.random() * (Math.PI * 0.5);
+                        b.vx = Math.cos(floatAngle) * (0.8 + Math.random() * 0.6);
+                        b.vy = Math.sin(floatAngle) * (0.8 + Math.random() * 0.6);
+                        b.color = '#00ffff';
+                    }
+                });
+            }
+
+            if (this.patternStep >= 290 && this.patternStep <= 350 && this.patternStep % 2 === 0) {
+                this.angleOffset += 0.45; 
+                const b = new Bullet(this.x, this.y, Math.cos(this.angleOffset) * 8.0, Math.sin(this.angleOffset) * 8.0, 15, '#ff00aa');
+                b.isGlowing = true;
+                bossBullets.push(b);
+            }
+
+            if (this.patternStep > 350 && this.patternStep <= 410 && this.patternStep % 2 === 0) {
+                this.angleOffset -= 0.45;
+                const b = new Bullet(this.x, this.y, Math.cos(this.angleOffset) * 8.0, Math.sin(this.angleOffset) * 8.0, 15, '#00ffaa');
+                b.isGlowing = true;
+                bossBullets.push(b);
+            }
+
+            if (this.patternStep > 430) {
+                this.isAttacking = false;
             }
         }
 
@@ -764,6 +913,7 @@ class Bullet {
         this.radius = radius;
         this.color = color;
         this.markedForDeletion = false;
+        this.isGlowing = false;
     }
 
     update() {
@@ -780,8 +930,15 @@ class Bullet {
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
         ctx.fillStyle = this.color;
+        
+        if (this.isGlowing) {
+            ctx.shadowColor = this.color;
+            ctx.shadowBlur = 15;
+        }
+
         ctx.fill();
         ctx.closePath();
+        ctx.shadowBlur = 0;
     }
 }
 
@@ -825,10 +982,10 @@ class FrozenHomingBullet extends SlowingBullet {
         } else if (this.timer === 75) {
             this.isFrozen = false;
             const targetAngle = Math.atan2(player.y - this.y, player.x - this.x);
-            this.vx = Math.cos(targetAngle) * 6.5;
-            this.vy = Math.sin(targetAngle) * 6.5;
+            this.vx = Math.cos(targetAngle) * 8.5;
+            this.vy = Math.sin(targetAngle) * 8.5;
             this.angle = targetAngle;
-            this.currentSpeed = 6.5;
+            this.currentSpeed = 8.5;
         }
 
         if (!this.isFrozen) super.update();
@@ -858,28 +1015,6 @@ class SideFloatingBullet extends SlowingBullet {
             this.y += this.vy;
             if (this.x < -50 || this.x > canvas.width + 50) this.markedForDeletion = true;
         }
-    }
-}
-
-class UltimateBullet extends SlowingBullet {
-    constructor(x, y, vx, vy, radius, color) {
-        super(x, y, vx, vy, radius, color);
-        this.timer = 0;
-        this.isGray = false;
-    }
-
-    update() {
-        if (isScreenFrozen) return;
-        this.timer++;
-
-        if (this.timer === 55) {
-            this.isGray = true;
-            this.color = '#777777';
-            this.vx *= 0.15;
-            this.vy *= 0.15;
-        }
-
-        super.update();
     }
 }
 
@@ -1167,7 +1302,7 @@ function endGame(win, isTroll = false, isSpecialWin = false) {
         if (title) { title.innerText = "¡GANASTE!"; title.style.color = "#00ffff"; }
         if (sub) sub.innerText = "WOW! eso de verdad fue fácil, ¿qué te parece si subimos el nivel?";
     } else if (win) {
-        if (title) { title.innerText = "GANASTE"; title.style.color = "#00ffff"; }
+        if (title) { title.innerText = "¡VICTORIA!"; title.style.color = "#00ffff"; }
         
         if (sub) {
             if (currentDifficulty === 'normal') {
@@ -1179,8 +1314,8 @@ function endGame(win, isTroll = false, isSpecialWin = false) {
             }
         }
     } else {
-        if (title) { title.innerText = "PERDISTE"; title.style.color = "#ff0055"; }
-        if (sub) sub.innerText = "Triste.";
+        if (title) { title.innerText = "GAME OVER"; title.style.color = "#ff0055"; }
+        if (sub) sub.innerText = "Te has quedado sin vidas.";
     }
 }
 
@@ -1195,12 +1330,15 @@ function restartGame() {
     isScreenFrozen = false;
     isUltimateActive = false;
     isBossImmune = false;
+    isGodMode = false;
     minions = [];
+    sigmaSlowRingTimer = 0;
     gameState = 'PLAYING';
     
     lastTime = performance.now();
     
     updateUI();
+    showBGMNotification('🎵 BGM: Boss Battle');
     requestAnimationFrame(gameLoop);
 }
 
@@ -1246,8 +1384,10 @@ function gameLoop(currentTime) {
         b.draw();
 
         if (boss.hp > 0 && checkCollision(b, boss)) {
+            const appliedDamage = boss.isDamageReduced ? b.damage * 0.5 : b.damage;
+            
             if (!isBossImmune) {
-                boss.hp -= b.damage;
+                boss.hp -= appliedDamage;
             }
             b.markedForDeletion = true;
             updateUI();
