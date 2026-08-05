@@ -8,7 +8,6 @@ let keyBuffer = '';
 window.addEventListener('keydown', e => {
     keys[e.key.toLowerCase()] = true;
 
-    // Acepta letras/números independientemente del estado del juego
     if (e.key.length === 1) {
         keyBuffer += e.key.toLowerCase();
         if (keyBuffer.length > 20) keyBuffer = keyBuffer.substring(1);
@@ -41,12 +40,10 @@ function showToast(text) {
 }
 
 function checkEasterEggWords() {
-    // Paso 1: haber ganado en Fácil y escribir "papoi"
     if (secretStep === 1 && keyBuffer.endsWith('papoi')) {
         showToast('papoi?');
-        secretStep = 2; // Desbloquea el paso 2 para entrar a difícil
+        secretStep = 2;
     }
-    // Paso 3: haber sobrevivido 15s en difícil y escribir "sigma"
     else if (secretStep === 3 && keyBuffer.endsWith('sigma')) {
         showToast('los sigmas están esperando');
         pendingSigmaUnlock = true;
@@ -58,12 +55,19 @@ function showDesc(text) {
     document.getElementById('diff-desc').innerText = text;
 }
 
+function getHardDescription() {
+    if (secretStep >= 2) {
+        return "algo cambió?";
+    }
+    return "no sé porqué querrías jugar esto";
+}
+
 function selectDifficulty(diff) {
     currentDifficulty = diff;
     document.getElementById('diff-screen').style.display = 'none';
 
     if (diff === 'easy') {
-        secretStep = 1; // Marca que se completó fácil para esperar "papoi"
+        secretStep = 1;
         endGame(true, true);
         return;
     }
@@ -101,8 +105,8 @@ function startSurvivalChallenge() {
         if (survivalTimer <= 0) {
             clearInterval(survivalInterval);
             survivalInterval = null;
-            secretStep = 3; // Pasa al estado final para escribir "sigma"
-            endGame(true, false, true); // Muestra "oh si"
+            secretStep = 3;
+            endGame(true, false, true);
         }
     }, 1000);
 }
@@ -352,6 +356,7 @@ class Boss {
         const microBulletRadius = 4.5 * sizeMult; 
         const phase = this.getPhase();
 
+        // 1. Delirium (Normal: 16 balas / Difícil: 24)
         if (type === 'deliriumChaos') {
             if (this.patternStep % 25 === 0 && this.patternStep <= 380) {
                 const count = currentDifficulty === 'hard' ? 24 : 16;
@@ -385,6 +390,7 @@ class Boss {
             if (this.patternStep > 390) this.isAttacking = false;
         }
 
+        // 2. Flor de Espirales (Normal: 4 brazos / Difícil: 5)
         if (type === 'flowerSpiral') {
             if (this.patternStep % 4 === 0 && this.patternStep < 240) {
                 this.angleOffset += 0.12;
@@ -403,6 +409,7 @@ class Boss {
             if (this.patternStep >= 240) this.isAttacking = false;
         }
 
+        // 3. 3 Espirales Opuestas
         if (type === 'triOppositeSpiral') {
             if (this.patternStep % 4 === 0 && this.patternStep < 250) {
                 this.angleOffset += 0.14;
@@ -429,6 +436,7 @@ class Boss {
             if (this.patternStep >= 250) this.isAttacking = false;
         }
 
+        // 4. Anillos que frenan (Normal: 14 balas / Difícil: 20)
         if (type === 'pausingRotatingRing') {
             if (this.patternStep % 35 === 0 && this.patternStep <= 210) {
                 const count = currentDifficulty === 'hard' ? 20 : 14;
@@ -450,6 +458,7 @@ class Boss {
             if (this.patternStep > 220) this.isAttacking = false;
         }
 
+        // 5. Ondas apuntadas
         if (type === 'lineWavePattern') {
             if (this.patternStep % 60 === 0 && this.patternStep <= 180) {
                 const targetAngle = Math.atan2(player.y - this.y, player.x - this.x);
@@ -466,6 +475,7 @@ class Boss {
             if (this.patternStep > 190) this.isAttacking = false;
         }
 
+        // 6. Diagonal Wall Burst
         if (type === 'diagonalWallBurst') {
             if (this.patternStep === 1 || this.patternStep === 80) {
                 bossBullets.push(new WallBurstBullet(this.x, this.y, -3.8, 4.2, 12.0 * sizeMult, '#ff00ff', 1));
@@ -474,6 +484,7 @@ class Boss {
             if (this.patternStep > 120) this.isAttacking = false;
         }
 
+        // 7. Péndulo (Normal: 20 balas / Difícil: 28)
         if (type === 'pendulumRing') {
             if (this.patternStep % 30 === 0 && this.patternStep <= 210) {
                 const count = currentDifficulty === 'hard' ? 28 : 20;
@@ -487,6 +498,7 @@ class Boss {
             if (this.patternStep > 220) this.isAttacking = false;
         }
 
+        // 8. Cruce en X (Normal: 12 balas / Difícil: 16)
         if (type === 'doubleCrossRing') {
             if (this.patternStep % 30 === 0 && this.patternStep <= 210) {
                 const count = currentDifficulty === 'hard' ? 16 : 12;
@@ -518,6 +530,7 @@ class Bullet {
     constructor(x, y, vx, vy, radius, color) {
         this.x = x;
         this.y = y;
+        // En normal las balas avanzan un 20% más despacio (0.8x)
         const speedMult = currentDifficulty === 'hard' ? 1.15 : 0.8;
         this.vx = vx * speedMult;
         this.vy = vy * speedMult;
@@ -737,7 +750,7 @@ class WallBurstBullet extends Bullet {
     }
 }
 
-// --- INICIALIZACIÓN ---
+// --- INICIALIZACIÓN Y UI ---
 let player;
 let boss;
 let playerBullets = [];
@@ -808,7 +821,15 @@ function endGame(win, isTroll = false, isSpecialWin = false) {
     } else if (win) {
         title.innerText = "¡VICTORIA!";
         title.style.color = "#00ffff";
-        sub.innerText = "¡Has derrotado al jefe!";
+        
+        // Pistas dinámicas según la dificultad ganada
+        if (currentDifficulty === 'normal') {
+            sub.innerHTML = "¡Has derrotado al jefe!<br><br><span style='font-size: 0.9rem; color: #aaaaaa; font-style: italic;'>la dificultad fácil esconde algo detras del *papoi*</span>";
+        } else if (currentDifficulty === 'hard') {
+            sub.innerHTML = "¡Has derrotado al jefe!<br><br><span style='font-size: 0.9rem; color: #aaaaaa; font-style: italic;'>el contador *sigma*</span>";
+        } else {
+            sub.innerText = "¡Has derrotado al jefe!";
+        }
     } else {
         title.innerText = "GAME OVER";
         title.style.color = "#ff0055";
@@ -826,6 +847,14 @@ function restartGame() {
     updateUI();
     gameLoop();
 }
+
+// Configurar los eventos onmouseenter del menú desde JS para incluir la descripción dinámica de Difícil
+document.addEventListener('DOMContentLoaded', () => {
+    const btnHard = document.querySelectorAll('.btn-diff')[2];
+    if (btnHard) {
+        btnHard.onmouseenter = () => showDesc(getHardDescription());
+    }
+});
 
 // --- GAME LOOP ---
 function gameLoop() {
